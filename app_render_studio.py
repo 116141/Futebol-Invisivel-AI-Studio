@@ -28,22 +28,38 @@ TASKS = {}
 def processar_video(task_id: str, titulo: str, tipo: str):
     try:
         is_doc = (tipo == "doc")
+        is_afiliado = (tipo == "afiliado_moda")
         aspect_ratio = "16:9" if is_doc else "9:16"
         res_scale = "1920:1080" if is_doc else "1080:1920"
         target_dir = DOCS_DIR if is_doc else SHORTS_DIR
         
-        TASKS[task_id]["status"] = "Gerando Roteiro Investigativo Factual..."
-        
-        tempo_desc = "um super documentário investigativo de 2 a 3 minutos com capítulos" if is_doc else "um SHORT vertical viral de 45 a 55 segundos"
-        prompt_script = f"""
-        Você é o roteirista investigativo do canal @FutebolInvisivelOficial no YouTube.
-        Crie o roteiro em português (pt-BR) para {tempo_desc} sobre o tema: '{titulo}'.
-        DIRETRIZES:
-        - Comece IMEDIATAMENTE com uma afirmação ou revelação de impacto nos primeiros segundos.
-        - Fale de bastidores, valores monetários, polêmicas, documentos oficiais e consequências.
-        - Termine com uma pergunta provocativa convidando a debater nos comentários e se inscrever no canal Futebol Invisível.
-        - Apenas o texto puro da narração, sem marcadores de cena como [Narrador] ou [Cena].
-        """
+        if is_afiliado:
+            TASKS[task_id]["status"] = "Gerando Copywriting Viral de Vendas (Moda Feminina)..."
+            voz_locutor = "pt-BR-FranciscaNeural"  # Voz feminina envolvente para moda
+            tempo_desc = "um vídeo vertical de 35 a 45 segundos para TikTok e Instagram Reels"
+            prompt_script = f"""
+            Você é uma copywriter especialista em vídeos virais de moda feminina para TikTok, Instagram Reels e Shopee/Afiliados.
+            Crie o roteiro em português (pt-BR) para {tempo_desc} promovendo a peça/tendência: '{titulo}'.
+            DIRETRIZES DE ALTA CONVERSÃO:
+            - Comece nos primeiros 3 segundos com um GANCHO IRRESISTÍVEL (ex: "Se você quer parecer milionária sem gastar quase nada...", "Essa é a peça que toda mulher estilosa está usando agora...", "Você não vai acreditar no preço dessa perfeição...").
+            - Destaque o caimento impecável, elegância, conforto e versatilidade de combinar com vários looks.
+            - Crie sensação de urgência e desejo imediato.
+            - Termine com Chamada para Ação (CTA) clara: "O link com desconto exclusivo está no primeiro comentário fixado e no link da bio! Corre antes que esgote o estoque!".
+            - Apenas o texto falado puro, sem marcadores [Narrador] ou [Cena].
+            """
+        else:
+            TASKS[task_id]["status"] = "Gerando Roteiro Investigativo Factual..."
+            voz_locutor = "pt-BR-AntonioNeural"
+            tempo_desc = "um super documentário investigativo de 2 a 3 minutos com capítulos" if is_doc else "um SHORT vertical viral de 45 a 55 segundos"
+            prompt_script = f"""
+            Você é o roteirista investigativo do canal @FutebolInvisivelOficial no YouTube.
+            Crie o roteiro em português (pt-BR) para {tempo_desc} sobre o tema: '{titulo}'.
+            DIRETRIZES:
+            - Comece IMEDIATAMENTE com uma afirmação ou revelação de impacto nos primeiros segundos.
+            - Fale de bastidores, valores monetários, polêmicas, documentos oficiais e consequências.
+            - Termine com uma pergunta provocativa convidando a debater nos comentários e se inscrever no canal Futebol Invisível.
+            - Apenas o texto puro da narração, sem marcadores de cena como [Narrador] ou [Cena].
+            """
         
         try:
             roteiro_gerado = llm.generate_script(prompt_script)
@@ -54,7 +70,15 @@ def processar_video(task_id: str, titulo: str, tipo: str):
             else:
                 raise ValueError("Erro de resposta da IA")
         except Exception:
-            if is_doc:
+            if is_afiliado:
+                roteiro = (
+                    f"Meninas, se você quer andar arrumada e elegante sem gastar uma fortuna, olha essa novidade sobre {titulo}! "
+                    "Essa peça tem um caimento dos sonhos, disfarça tudo o que precisa e modela o corpo com puro conforto. "
+                    "Combina perfeitamente tanto pro dia a dia quanto pra eventos especiais. Todo mundo que vê pergunta de onde é! "
+                    "E o melhor: achei com um cupom de desconto secreto! O link oficial está liberado na bio e no primeiro comentário fixado. "
+                    "Aproveita logo antes que essa promoção acabe e esgote todas as unidades!"
+                )
+            elif is_doc:
                 roteiro = (
                     f"A investigação completa que abalou os bastidores do futebol mundial sobre {titulo}! "
                     "Capítulo um: Os bastidores e o nascimento da crise. "
@@ -82,13 +106,13 @@ def processar_video(task_id: str, titulo: str, tipo: str):
         temp_dir = f"temp_web_build_{task_id[:8]}"
         os.makedirs(temp_dir, exist_ok=True)
         
-        # Áudio
+        # Áudio com voz apropriada
         audio_path = os.path.join(temp_dir, "audio.mp3")
-        sm = voice.azure_tts_v1(roteiro, "pt-BR-AntonioNeural", 1.0, audio_path)
+        sm = voice.azure_tts_v1(roteiro, voz_locutor, 1.0, audio_path)
         srt_content = sm.get_srt() if sm else ""
         
-        # Download de Vídeos
-        TASKS[task_id]["status"] = "Buscando e Baixando Vídeos Reais no YouTube..."
+        # Download de Vídeos Reais Contextuais
+        TASKS[task_id]["status"] = "Buscando e Baixando Vídeos em Alta no YouTube..."
         ydl_opts = {
             'format': 'best',
             'extractor_args': {'youtube': {'player_client': ['android', 'web']}},
@@ -98,10 +122,16 @@ def processar_video(task_id: str, titulo: str, tipo: str):
             'max_downloads': 1
         }
         
-        queries = [
-            f"ytsearch1:{titulo} soccer football highlights",
-            f"ytsearch1:{titulo} match skills goals"
-        ]
+        if is_afiliado:
+            queries = [
+                f"ytsearch1:{titulo} try on haul lookbook outfits",
+                f"ytsearch1:{titulo} fashion style outfit review"
+            ]
+        else:
+            queries = [
+                f"ytsearch1:{titulo} soccer football highlights",
+                f"ytsearch1:{titulo} match skills goals"
+            ]
         for q in queries:
             try:
                 with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -202,7 +232,12 @@ def processar_video(task_id: str, titulo: str, tipo: str):
             f.write(header + "\n".join(events))
             
         # Render Final
-        prefix = "DOCUMENTARIO" if is_doc else "SHORT"
+        if is_afiliado:
+            prefix = "AFILIADO_MODA"
+        elif is_doc:
+            prefix = "DOCUMENTARIO"
+        else:
+            prefix = "SHORT"
         TASKS[task_id]["status"] = f"Renderizando {prefix} em Full HD ({aspect_ratio})..."
         clean_name = re.sub(r'[^a-zA-Z0-9_]', '_', titulo)[:30]
         final_filename = f"{prefix}_{clean_name}_{task_id[:6]}.mp4"
@@ -267,29 +302,38 @@ HTML_PAGE = """
             <h4 class="mb-3 text-light">🚀 Criar Vídeo Inteligente em 1 Clique</h4>
             <form id="createForm">
                 <div class="mb-3">
-                    <label class="form-label text-light fw-bold">1. Digite o TEMA ou TÍTULO da investigação:</label>
+                    <label class="form-label text-light fw-bold">1. Digite o TEMA, TÍTULO ou PRODUTO:</label>
                     <input type="text" id="tituloInput" class="form-control form-control-lg bg-dark text-light border-secondary" 
-                           placeholder="Ex: As 115 Violações do Manchester City / A revolta de CR7 / Gols absurdos de Raphinha" required>
+                           placeholder="Ex: Vestido Longo Elegante Tendência 2026 / Conjunto Alfaiataria Feminino / Caso Negreira" required>
                 </div>
 
                 <div class="mb-4">
-                    <label class="form-label text-light fw-bold">2. Escolha o Formato:</label>
+                    <label class="form-label text-light fw-bold">2. Escolha o Formato do Conteúdo:</label>
                     <div class="row g-3">
-                        <div class="col-md-6">
-                            <div class="p-3 bg-dark rounded border border-secondary d-flex align-items-center">
+                        <div class="col-md-4">
+                            <div class="p-3 bg-dark rounded border border-secondary d-flex align-items-center h-100">
                                 <input class="form-check-input me-3" type="radio" name="tipoVideo" id="tipoShort" value="short" checked>
                                 <label class="form-check-label text-light" for="tipoShort">
-                                    <strong>📱 YOUTUBE SHORTS (9:16)</strong><br>
-                                    <small class="text-secondary">Viral vertical, rápido (45-55s), cortes dinâmicos.</small>
+                                    <strong>📱 SHORTS FUTEBOL (9:16)</strong><br>
+                                    <small class="text-secondary">Viral rápido (45-55s), cortes dinâmicos.</small>
                                 </label>
                             </div>
                         </div>
-                        <div class="col-md-6">
-                            <div class="p-3 bg-dark rounded border border-secondary d-flex align-items-center">
+                        <div class="col-md-4">
+                            <div class="p-3 bg-dark rounded border border-secondary d-flex align-items-center h-100">
                                 <input class="form-check-input me-3" type="radio" name="tipoVideo" id="tipoDoc" value="doc">
                                 <label class="form-check-label text-light" for="tipoDoc">
-                                    <strong>🎬 DOCUMENTÁRIO LONGO (16:9)</strong><br>
-                                    <small class="text-secondary">Horizontal TV, narrativa profunda com capítulos.</small>
+                                    <strong>🎬 DOCUMENTÁRIO (16:9)</strong><br>
+                                    <small class="text-secondary">Horizontal TV investigativo com capítulos.</small>
+                                </label>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="p-3 bg-dark rounded border border-secondary d-flex align-items-center h-100" style="border-color: #ec4899 !important;">
+                                <input class="form-check-input me-3" type="radio" name="tipoVideo" id="tipoAfiliado" value="afiliado_moda">
+                                <label class="form-check-label text-light" for="tipoAfiliado">
+                                    <strong class="text-pink" style="color: #f472b6;">🛍️ MODA / AFILIADO (9:16)</strong><br>
+                                    <small class="text-secondary">Voz feminina, lookbooks reais, CTA de compra no TikTok/Reels.</small>
                                 </label>
                             </div>
                         </div>
