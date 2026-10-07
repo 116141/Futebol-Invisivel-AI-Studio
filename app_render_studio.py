@@ -6,7 +6,8 @@ import shutil
 import subprocess
 import imageio_ffmpeg
 from loguru import logger
-from fastapi import FastAPI, BackgroundTasks, Form, HTTPException
+from typing import List, Optional
+from fastapi import FastAPI, BackgroundTasks, Form, HTTPException, UploadFile, File
 from fastapi.responses import HTMLResponse, FileResponse
 import yt_dlp
 from app.services import voice, llm
@@ -25,7 +26,7 @@ app = FastAPI(title="Futebol Invisível AI Studio")
 
 TASKS = {}
 
-def processar_video(task_id: str, titulo: str, tipo: str):
+def processar_video(task_id: str, titulo: str, tipo: str, uploaded_image_paths: list = None):
     try:
         is_doc = (tipo == "doc")
         is_afiliado = (tipo == "afiliado_moda")
@@ -72,7 +73,7 @@ def processar_video(task_id: str, titulo: str, tipo: str):
         except Exception:
             if is_afiliado:
                 roteiro = (
-                    f"Meninas, se você quer andar arrumada e elegante sem gastar uma fortuna, olha essa novidade sobre {titulo}! "
+                    f"Meninas, se você quer andar arrumada e elegante sem gastar uma fortuna, olha essa perfeição: {titulo}! "
                     "Essa peça tem um caimento dos sonhos, disfarça tudo o que precisa e modela o corpo com puro conforto. "
                     "Combina perfeitamente tanto pro dia a dia quanto pra eventos especiais. Todo mundo que vê pergunta de onde é! "
                     "E o melhor: achei com um cupom de desconto secreto! O link oficial está liberado na bio e no primeiro comentário fixado. "
@@ -111,8 +112,28 @@ def processar_video(task_id: str, titulo: str, tipo: str):
         sm = voice.azure_tts_v1(roteiro, voz_locutor, 1.0, audio_path)
         srt_content = sm.get_srt() if sm else ""
         
-        # Download de Vídeos Reais Contextuais
-        TASKS[task_id]["status"] = "Buscando e Baixando Vídeos em Alta no YouTube..."
+        clip_files = []
+        clip_idx = 1
+        
+        # Se o usuário enviou imagens do produto, transformamos em clipes cinematográficos (Ken Burns)
+        if uploaded_image_paths and len(uploaded_image_paths) > 0:
+            TASKS[task_id]["status"] = "Animando Fotos Oficiais do Produto..."
+            for img_p in uploaded_image_paths:
+                c_img_out = os.path.join(temp_dir, f"clip_img_{clip_idx:02d}.mp4")
+                # Efeito Ken Burns zoom suave 9:16
+                cmd_img = [
+                    FFMPEG, "-y", "-loop", "1", "-i", img_p, "-t", "3.5",
+                    "-vf", "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,zoompan=z='min(zoom+0.0015,1.15)':d=105:x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':s=1080x1920:fps=30",
+                    "-c:v", "libx264", "-preset", "veryfast", "-crf", "22", "-pix_fmt", "yuv420p",
+                    c_img_out
+                ]
+                subprocess.run(cmd_img, capture_output=True)
+                if os.path.exists(c_img_out) and os.path.getsize(c_img_out) > 50000:
+                    clip_files.append(c_img_out)
+                    clip_idx += 1
+        
+        # Download de Vídeos Reais Contextuais com Pessoas em Movimento
+        TASKS[task_id]["status"] = "Buscando Pessoas Reais em Movimento no YouTube..."
         ydl_opts = {
             'format': 'best',
             'extractor_args': {'youtube': {'player_client': ['android', 'web']}},
@@ -124,8 +145,8 @@ def processar_video(task_id: str, titulo: str, tipo: str):
         
         if is_afiliado:
             queries = [
-                f"ytsearch1:{titulo} try on haul lookbook outfits",
-                f"ytsearch1:{titulo} fashion style outfit review"
+                f"ytsearch1:{titulo} try on haul lookbook review",
+                f"ytsearch1:{titulo} dress walking outfit in motion"
             ]
         else:
             queries = [
@@ -140,28 +161,22 @@ def processar_video(task_id: str, titulo: str, tipo: str):
                 logger.info(f"Busca: {e}")
                 
         downloaded = [os.path.join(temp_dir, f) for f in os.listdir(temp_dir) if f.startswith("source_") and f.endswith(".mp4")]
-        if not downloaded:
-            raise Exception("Não foi possível encontrar vídeos no YouTube para este tema.")
-            
+        
         TASKS[task_id]["status"] = f"Cortando Clipes em {aspect_ratio} e Editando..."
         
-        clip_files = []
-        clip_idx = 1
         offsets = [10, 20, 30, 45, 60, 75, 90, 110, 130] if is_doc else [10, 20, 30, 45, 60]
-        max_clips = 12 if is_doc else 6
+        max_clips = 12 if is_doc else (8 if uploaded_image_paths else 6)
         
         for v in downloaded:
             for off in offsets:
-                c_out = os.path.join(temp_dir, f"clip_{clip_idx:02d}.mp4")
+                c_out = os.path.join(temp_dir, f"clip_vid_{clip_idx:02d}.mp4")
                 if is_doc:
-                    # Formato 16:9 widescreen para documentários
                     vf_filter = "scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2,fps=30"
                 else:
-                    # Formato 9:16 vertical para shorts
                     vf_filter = "crop=ih*9/16:ih:(iw-ih*9/16)/2:0,scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2,fps=30"
                 
                 cmd = [
-                    FFMPEG, "-y", "-ss", str(off), "-i", v, "-t", "4.0", "-an",
+                    FFMPEG, "-y", "-ss", str(off), "-i", v, "-t", "3.5", "-an",
                     "-vf", vf_filter,
                     "-c:v", "libx264", "-preset", "veryfast", "-crf", "22", "-pix_fmt", "yuv420p",
                     c_out
@@ -338,6 +353,10 @@ HTML_PAGE = """
                             </div>
                         </div>
                     </div>
+                <div class="mb-4">
+                    <label class="form-label text-light fw-bold">3. Fotos Oficiais do Produto (Opcional - Ex: Baixadas do AliExpress):</label>
+                    <input type="file" id="fotosInput" class="form-control bg-dark text-light border-secondary" multiple accept="image/*">
+                    <small class="text-secondary">Se você anexar as fotos, elas serão animadas em Full HD com efeito Ken Burns e mescladas com os vídeos de pessoas reais em movimento.</small>
                 </div>
 
                 <button type="submit" class="btn btn-gold btn-lg w-100" id="btnSubmit">⚡ GERAR VÍDEO COMPLETO AGORA</button>
@@ -390,7 +409,9 @@ HTML_PAGE = """
                     const isPronto = t.status === "CONCLUÍDO";
                     const isErro = t.status.startsWith("Erro");
                     const badgeClass = isPronto ? "bg-success" : (isErro ? "bg-danger" : "bg-warning text-dark");
-                    const icon = t.tipo === "doc" ? "🎬 DOC" : "📱 SHORT";
+                    let icon = "📱 SHORT";
+                    if (t.tipo === "doc") icon = "🎬 DOC";
+                    if (t.tipo === "afiliado_moda") icon = "🛍️ MODA";
                     
                     html += `
                         <div class="list-group-item bg-dark border-secondary text-light p-3 mb-2 rounded d-flex justify-content-between align-items-center flex-wrap gap-2">
@@ -418,6 +439,7 @@ HTML_PAGE = """
             e.preventDefault();
             const titulo = document.getElementById('tituloInput').value;
             const tipo = document.querySelector('input[name="tipoVideo"]:checked').value;
+            const fotosInput = document.getElementById('fotosInput');
 
             btnSubmit.disabled = true;
             progressCard.classList.remove('d-none');
@@ -426,10 +448,18 @@ HTML_PAGE = """
             spinner.classList.remove('d-none');
             statusText.innerText = "Criando tarefa no servidor...";
 
+            const formData = new FormData();
+            formData.append('titulo', titulo);
+            formData.append('tipo', tipo);
+            if (fotosInput.files) {
+                for (let i = 0; i < fotosInput.files.length; i++) {
+                    formData.append('fotos', fotosInput.files[i]);
+                }
+            }
+
             const res = await fetch('/api/criar', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                body: new URLSearchParams({ titulo, tipo })
+                body: formData
             });
             const data = await res.json();
             const taskId = data.task_id;
@@ -475,8 +505,27 @@ def listar_tarefas():
     return TASKS
 
 @app.post("/api/criar")
-def criar_video(background_tasks: BackgroundTasks, titulo: str = Form(...), tipo: str = Form("short")):
+async def criar_video(
+    background_tasks: BackgroundTasks,
+    titulo: str = Form(...),
+    tipo: str = Form("short"),
+    fotos: Optional[List[UploadFile]] = File(None)
+):
     task_id = str(uuid.uuid4())
+    uploaded_image_paths = []
+    
+    if fotos:
+        upload_dir = f"temp_upload_{task_id[:8]}"
+        os.makedirs(upload_dir, exist_ok=True)
+        for f in fotos:
+            if f.filename:
+                dest = os.path.join(upload_dir, f.filename)
+                content = await f.read()
+                with open(dest, "wb") as buffer:
+                    buffer.write(content)
+                if os.path.exists(dest) and os.path.getsize(dest) > 1000:
+                    uploaded_image_paths.append(dest)
+                    
     TASKS[task_id] = {
         "titulo": titulo,
         "tipo": tipo,
@@ -485,7 +534,7 @@ def criar_video(background_tasks: BackgroundTasks, titulo: str = Form(...), tipo
         "file_path": None,
         "file_name": None
     }
-    background_tasks.add_task(processar_video, task_id, titulo, tipo)
+    background_tasks.add_task(processar_video, task_id, titulo, tipo, uploaded_image_paths)
     return {"task_id": task_id}
 
 @app.get("/api/status/{task_id}")
