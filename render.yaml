@@ -4,7 +4,7 @@ services:
     env: python
     region: oregon
     plan: free
-    buildCommand: "apt-get update && apt-get install -y ffmpeg git && pip install -r requirements.txt"
+    buildCommand: "pip install --upgrade pip && pip install -r requirements.txt"
     startCommand: "python app_render_studio.py"
     envVars:
       - key: PORT
