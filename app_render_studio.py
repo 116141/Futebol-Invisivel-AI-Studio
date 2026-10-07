@@ -300,8 +300,15 @@ HTML_PAGE = """
             </form>
         </div>
 
-        <div id="progressCard" class="card card-custom p-4 d-none">
-            <h5 class="text-warning">Status da Produção em Tempo Real:</h5>
+        <div class="card card-custom p-4 mb-4">
+            <h5 class="text-warning mb-3">📋 Vídeos Sendo Gerados e Prontos (Ao Vivo):</h5>
+            <div id="listaTarefas" class="list-group">
+                <div class="text-secondary small p-3 text-center">Nenhum vídeo em andamento no momento.</div>
+            </div>
+        </div>
+
+        <div id="progressCard" class="card card-custom p-4 d-none mb-4">
+            <h5 class="text-warning">Status do Vídeo Atual:</h5>
             <div class="d-flex align-items-center my-3">
                 <div class="spinner-border text-warning me-3" role="status" id="spinner"></div>
                 <span id="statusText" class="fs-5 text-light fw-bold">Iniciando...</span>
@@ -322,6 +329,46 @@ HTML_PAGE = """
         const downloadBox = document.getElementById('downloadBox');
         const btnDownload = document.getElementById('btnDownload');
         const btnSubmit = document.getElementById('btnSubmit');
+        const listaTarefas = document.getElementById('listaTarefas');
+
+        async function carregarTarefas() {
+            try {
+                const res = await fetch('/api/tarefas');
+                const tarefas = await res.json();
+                const keys = Object.keys(tarefas);
+                if (keys.length === 0) {
+                    listaTarefas.innerHTML = '<div class="text-secondary small p-3 text-center">Nenhum vídeo gerado ainda.</div>';
+                    return;
+                }
+                let html = '';
+                keys.reverse().forEach(id => {
+                    const t = tarefas[id];
+                    const isPronto = t.status === "CONCLUÍDO";
+                    const isErro = t.status.startsWith("Erro");
+                    const badgeClass = isPronto ? "bg-success" : (isErro ? "bg-danger" : "bg-warning text-dark");
+                    const icon = t.tipo === "doc" ? "🎬 DOC" : "📱 SHORT";
+                    
+                    html += `
+                        <div class="list-group-item bg-dark border-secondary text-light p-3 mb-2 rounded d-flex justify-content-between align-items-center flex-wrap gap-2">
+                            <div>
+                                <span class="badge bg-secondary me-2">${icon}</span>
+                                <strong class="fs-6">${t.titulo}</strong><br>
+                                <span class="badge ${badgeClass} mt-1">${t.status}</span>
+                            </div>
+                            <div>
+                                ${isPronto ? `<a href="/api/download/${id}" class="btn btn-success btn-sm fw-bold px-3">📥 BAIXAR MP4</a>` : ''}
+                            </div>
+                        </div>
+                    `;
+                });
+                listaTarefas.innerHTML = html;
+            } catch (e) {
+                console.error(e);
+            }
+        }
+
+        setInterval(carregarTarefas, 3000);
+        carregarTarefas();
 
         form.addEventListener('submit', async (e) => {
             e.preventDefault();
@@ -342,6 +389,7 @@ HTML_PAGE = """
             });
             const data = await res.json();
             const taskId = data.task_id;
+            carregarTarefas();
 
             const interval = setInterval(async () => {
                 const check = await fetch(`/api/status/${taskId}`);
@@ -360,10 +408,12 @@ HTML_PAGE = """
                     btnDownload.href = `/api/download/${taskId}`;
                     downloadBox.classList.remove('d-none');
                     btnSubmit.disabled = false;
+                    carregarTarefas();
                 } else if (task.status.startsWith("Erro")) {
                     clearInterval(interval);
                     spinner.classList.add('d-none');
                     btnSubmit.disabled = false;
+                    carregarTarefas();
                 }
             }, 3000);
         });
@@ -375,6 +425,10 @@ HTML_PAGE = """
 @app.get("/", response_class=HTMLResponse)
 def index():
     return HTML_PAGE
+
+@app.get("/api/tarefas")
+def listar_tarefas():
+    return TASKS
 
 @app.post("/api/criar")
 def criar_video(background_tasks: BackgroundTasks, titulo: str = Form(...), tipo: str = Form("short")):
