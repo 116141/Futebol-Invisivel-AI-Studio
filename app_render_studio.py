@@ -326,23 +326,45 @@ def processar_video(task_id: str, titulo: str, tipo: str, uploaded_image_paths: 
             # Pacote Completo de Postagem (1-Clique)
             link_display = link_afiliado if link_afiliado else "https://s.click.aliexpress.com/..."
             if is_afiliado:
-                TASKS[task_id]["post_titulo"] = f"{titulo[:65]}! ✨ | Alana Cruz #Shorts"
-                TASKS[task_id]["post_descricao"] = (
+                post_titulo = f"{titulo[:65]}! ✨ | Alana Cruz #Shorts"
+                post_desc = (
                     f"Meninas, olha essa perfeição: {titulo}! Modela o corpo, caimento impecável e super confortável. 💕\n\n"
                     f"🛍️ Link oficial com desconto exclusivo:\n👉 {link_display}\n\n"
                     f"Se inscreva no canal Alana Cruz para mais achadinhos elegantes de moda feminina! ✨\n\n"
                     f"#modafeminina #vestidofesta #achadinhos #aliexpress #lookdodia #shorts"
                 )
-                TASKS[task_id]["post_comentario"] = f"🛍️ Link oficial com desconto promocional:\n👉 {link_display} 💕"
+                post_coment = f"🛍️ Link oficial com desconto promocional:\n👉 {link_display} 💕"
             else:
-                TASKS[task_id]["post_titulo"] = f"{titulo[:70]} | Futebol Invisível #Shorts"
-                TASKS[task_id]["post_descricao"] = (
+                post_titulo = f"{titulo[:70]} | Futebol Invisível #Shorts"
+                post_desc = (
                     f"A investigação completa dos bastidores sobre {titulo}! Inscreva-se no canal Futebol Invisível.\n\n"
                     f"#futebol #futebolinvisivel #shorts #polemica #bastidores"
                 )
-                TASKS[task_id]["post_comentario"] = "Deixe sua opinião nos comentários e se inscreva no canal Futebol Invisível!"
+                post_coment = "Deixe sua opinião nos comentários e se inscreva no canal Futebol Invisível!"
                 
-            logger.success(f"{prefix} CONCLUÍDO: {final_path}")
+            TASKS[task_id]["post_titulo"] = post_titulo
+            TASKS[task_id]["post_descricao"] = post_desc
+            TASKS[task_id]["post_comentario"] = post_coment
+            
+            # Salvar ficheiro .TXT completo com as informações para guardar e postar depois
+            txt_filename = final_filename.rsplit('.', 1)[0] + "_POSTAGEM.txt"
+            txt_path = os.path.join(target_dir, txt_filename)
+            with open(txt_path, "w", encoding="utf-8") as f_txt:
+                f_txt.write("====================================================\n")
+                f_txt.write(f"FICHA DE POSTAGEM - {prefix}\n")
+                f_txt.write("====================================================\n\n")
+                f_txt.write(f"📌 TÍTULO DO VÍDEO:\n{post_titulo}\n\n")
+                f_txt.write(f"📝 DESCRIÇÃO COM HASHTAGS:\n{post_desc}\n\n")
+                f_txt.write(f"💬 1º COMENTÁRIO FIXADO (LINK DIRETO):\n{post_coment}\n\n")
+                if link_afiliado:
+                    f_txt.write(f"🔗 LINK DE AFILIADO PURO:\n{link_afiliado}\n\n")
+                if roteiro:
+                    f_txt.write(f"🎙️ ROTEIRO NARRADO:\n{roteiro}\n")
+            
+            TASKS[task_id]["txt_path"] = txt_path
+            TASKS[task_id]["txt_name"] = txt_filename
+                
+            logger.success(f"{prefix} CONCLUÍDO: {final_path} | TXT: {txt_path}")
         else:
             TASKS[task_id]["status"] = f"Erro na renderização final: {res.stderr[:200]}"
             
@@ -450,8 +472,9 @@ HTML_PAGE = """
                 <span id="statusText" class="fs-5 text-light fw-bold">Iniciando...</span>
             </div>
             
-            <div id="downloadBox" class="d-none mb-3">
-                <a id="btnDownload" href="#" class="btn btn-success btn-lg w-100 fw-bold">📥 BAIXAR VÍDEO PRONTO (FULL HD)</a>
+            <div id="downloadBox" class="d-none mb-3 d-flex gap-2">
+                <a id="btnDownload" href="#" class="btn btn-success btn-lg flex-grow-1 fw-bold">📥 BAIXAR VÍDEO (MP4)</a>
+                <a id="btnDownloadTxt" href="#" class="btn btn-outline-warning btn-lg fw-bold px-4">📄 BAIXAR FICHA (TXT)</a>
             </div>
 
             <!-- KIT COMPLETO DE POSTAGEM PRONTO (1-CLIQUE) -->
@@ -524,8 +547,9 @@ HTML_PAGE = """
                                 <strong class="fs-6">${t.titulo}</strong><br>
                                 <span class="badge ${badgeClass} mt-1">${t.status}</span>
                             </div>
-                            <div>
-                                ${isPronto ? `<a href="/api/download/${id}" class="btn btn-success btn-sm fw-bold px-3">📥 BAIXAR MP4</a>` : ''}
+                            <div class="d-flex gap-2">
+                                ${isPronto ? `<a href="/api/download/${id}" class="btn btn-success btn-sm fw-bold px-3">📥 MP4</a>` : ''}
+                                ${isPronto ? `<a href="/api/download_txt/${id}" class="btn btn-outline-warning btn-sm fw-bold px-2">📄 TXT</a>` : ''}
                             </div>
                         </div>
                     `;
@@ -595,6 +619,8 @@ HTML_PAGE = """
                     spinner.classList.add('d-none');
                     statusText.innerText = "✅ VÍDEO 100% PRONTO EM FULL HD!";
                     btnDownload.href = `/api/download/${taskId}`;
+                    const btnDownloadTxt = document.getElementById('btnDownloadTxt');
+                    if (btnDownloadTxt) btnDownloadTxt.href = `/api/download_txt/${taskId}`;
                     downloadBox.classList.remove('d-none');
 
                     if (task.post_titulo) {
@@ -676,6 +702,13 @@ def download_video(task_id: str):
     if not task or not task.get("file_path") or not os.path.exists(task["file_path"]):
         raise HTTPException(status_code=404, detail="Arquivo não pronto")
     return FileResponse(task["file_path"], media_type="video/mp4", filename=task["file_name"])
+
+@app.get("/api/download_txt/{task_id}")
+def download_txt(task_id: str):
+    task = TASKS.get(task_id)
+    if not task or not task.get("txt_path") or not os.path.exists(task["txt_path"]):
+        raise HTTPException(status_code=404, detail="Arquivo TXT não encontrado")
+    return FileResponse(task["txt_path"], media_type="text/plain", filename=task["txt_name"])
 
 if __name__ == "__main__":
     import uvicorn
