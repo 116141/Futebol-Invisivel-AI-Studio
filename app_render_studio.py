@@ -132,57 +132,71 @@ def processar_video(task_id: str, titulo: str, tipo: str, uploaded_image_paths: 
         clip_files = []
         clip_idx = 1
         
-        # Se o usuário enviou imagens do produto, transformamos em clipes cinematográficos (Ken Burns)
+        # Se o usuário enviou imagens do produto, transformamos em clipes cinematográficos de alta fidelidade
         if uploaded_image_paths and len(uploaded_image_paths) > 0:
-            TASKS[task_id]["status"] = "Animando Fotos Oficiais do Produto..."
-            for img_p in uploaded_image_paths:
+            TASKS[task_id]["status"] = "Animando Fotos Oficiais do Anúncio com Alta Precisão..."
+            # Criar variações de efeitos (zoom in no detalhe, zoom out elegante, panorâmica vertical suave)
+            efeitos = [
+                "zoompan=z='min(zoom+0.002,1.20)':d=105:x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':s=1080x1920:fps=30", # Zoom in central
+                "zoompan=z='if(lte(zoom,1.0),1.20,max(1.001,zoom-0.002))':d=105:x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':s=1080x1920:fps=30", # Zoom out revelação
+                "zoompan=z='1.12':d=105:x='iw/2-(iw/zoom/2)':y='if(lte(on,1),(ih-ih/zoom)/2,y-0.6)':s=1080x1920:fps=30", # Panorâmica sutil
+                "zoompan=z='min(zoom+0.0015,1.15)':d=105:x='iw/2-(iw/zoom/2)':y='ih*0.25':s=1080x1920:fps=30" # Foco no decote / parte superior
+            ]
+            for i, img_p in enumerate(uploaded_image_paths):
                 c_img_out = os.path.join(temp_dir, f"clip_img_{clip_idx:02d}.mp4")
-                # Efeito Ken Burns zoom suave 9:16
+                ef = efeitos[i % len(efeitos)]
                 cmd_img = [
-                    FFMPEG, "-y", "-loop", "1", "-i", img_p, "-t", "3.5",
-                    "-vf", "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,zoompan=z='min(zoom+0.0015,1.15)':d=105:x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':s=1080x1920:fps=30",
-                    "-c:v", "libx264", "-preset", "veryfast", "-crf", "22", "-pix_fmt", "yuv420p",
+                    FFMPEG, "-y", "-loop", "1", "-i", img_p, "-t", "3.8",
+                    "-vf", f"scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,{ef}",
+                    "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-pix_fmt", "yuv420p",
                     c_img_out
                 ]
                 subprocess.run(cmd_img, capture_output=True)
                 if os.path.exists(c_img_out) and os.path.getsize(c_img_out) > 50000:
                     clip_files.append(c_img_out)
                     clip_idx += 1
+
+        # Busca de Vídeos Externos Apenas Quando Necessário ou Altamente Específico
+        downloaded = []
+        # Se NÃO temos fotos do anúncio OU se for futebol/documentário, a busca no YouTube é obrigatória
+        precisa_buscar_video = (not uploaded_image_paths or len(uploaded_image_paths) == 0 or not is_afiliado)
         
-        # Download de Vídeos Reais Contextuais com Pessoas em Movimento
-        TASKS[task_id]["status"] = "Buscando Pessoas Reais em Movimento no YouTube..."
-        ydl_opts = {
-            'format': 'best',
-            'extractor_args': {'youtube': {'player_client': ['android', 'web']}},
-            'outtmpl': os.path.join(temp_dir, 'source_%(id)s.%(ext)s'),
-            'quiet': True,
-            'no_warnings': True,
-            'max_downloads': 1
-        }
-        
-        if is_afiliado:
-            queries = [
-                f"ytsearch1:{titulo} try on haul lookbook review",
-                f"ytsearch1:{titulo} dress walking outfit in motion"
-            ]
+        if precisa_buscar_video:
+            TASKS[task_id]["status"] = "Buscando Vídeos Reais no YouTube..."
+            ydl_opts = {
+                'format': 'best',
+                'extractor_args': {'youtube': {'player_client': ['android', 'web']}},
+                'outtmpl': os.path.join(temp_dir, 'source_%(id)s.%(ext)s'),
+                'quiet': True,
+                'no_warnings': True,
+                'max_downloads': 1
+            }
+            
+            if is_afiliado:
+                queries = [
+                    f"ytsearch1:{titulo} try on haul review",
+                    f"ytsearch1:{titulo} outfit in motion"
+                ]
+            else:
+                queries = [
+                    f"ytsearch1:{titulo} soccer football highlights",
+                    f"ytsearch1:{titulo} match skills goals"
+                ]
+            for q in queries:
+                try:
+                    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                        ydl.extract_info(q, download=True)
+                except Exception as e:
+                    logger.info(f"Busca: {e}")
+                    
+            downloaded = [os.path.join(temp_dir, f) for f in os.listdir(temp_dir) if f.startswith("source_") and f.endswith(".mp4")]
         else:
-            queries = [
-                f"ytsearch1:{titulo} soccer football highlights",
-                f"ytsearch1:{titulo} match skills goals"
-            ]
-        for q in queries:
-            try:
-                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                    ydl.extract_info(q, download=True)
-            except Exception as e:
-                logger.info(f"Busca: {e}")
-                
-        downloaded = [os.path.join(temp_dir, f) for f in os.listdir(temp_dir) if f.startswith("source_") and f.endswith(".mp4")]
-        
+            logger.info("Modo Afiliado: Fotos oficiais fornecidas pelo usuário. Usando 100% imagens reais do anúncio para precisão absoluta!")
+
         TASKS[task_id]["status"] = f"Cortando Clipes em {aspect_ratio} e Editando..."
         
         offsets = [10, 20, 30, 45, 60, 75, 90, 110, 130] if is_doc else [10, 20, 30, 45, 60]
-        max_clips = 12 if is_doc else (8 if uploaded_image_paths else 6)
+        max_clips = 12 if is_doc else 6
         
         for v in downloaded:
             for off in offsets:
@@ -207,7 +221,22 @@ def processar_video(task_id: str, titulo: str, tipo: str, uploaded_image_paths: 
             if len(clip_files) >= max_clips:
                 break
                 
-        if len(clip_files) < 2:
+        # Se mesmo com fotos ainda faltar clipes para preencher o tempo da narração, duplicar as fotos com ângulos invertidos
+        if len(clip_files) < 4 and uploaded_image_paths:
+            for i, img_p in enumerate(uploaded_image_paths):
+                c_loop_out = os.path.join(temp_dir, f"clip_loop_{clip_idx:02d}.mp4")
+                cmd_loop = [
+                    FFMPEG, "-y", "-loop", "1", "-i", img_p, "-t", "3.5",
+                    "-vf", "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,zoompan=z='min(zoom+0.0018,1.18)':d=105:x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':s=1080x1920:fps=30",
+                    "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-pix_fmt", "yuv420p",
+                    c_loop_out
+                ]
+                subprocess.run(cmd_loop, capture_output=True)
+                if os.path.exists(c_loop_out):
+                    clip_files.append(c_loop_out)
+                    clip_idx += 1
+
+        if len(clip_files) < 1:
             raise Exception("Não foi possível gerar clipes suficientes.")
             
         concat_txt = os.path.join(temp_dir, "concat.txt")
