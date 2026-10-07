@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: futebol-invisivel-ai
+    env: python
+    region: oregon
+    plan: free
+    buildCommand: "apt-get update && apt-get install -y ffmpeg git && pip install -r requirements.txt"
+    startCommand: "python app_render_studio.py"
+    envVars:
+      - key: PORT
+        value: 8080
+      - key: PYTHON_VERSION
+        value: 3.11.9

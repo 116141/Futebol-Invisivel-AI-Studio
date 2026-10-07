@@ -1,0 +1,80 @@
+[Script Info]
+ScriptType: v4.00+
+PlayResX: 1920
+PlayResY: 1080
+
+[V4+ Styles]
+Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+Style: Default,Arial Black,50,&H0000FFFF,&H000000FF,&H00000000,&H80000000,1,0,0,0,100,100,0,0,1,4,2,2,30,30,80,1
+
+[Events]
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+Dialogue: 0,0:00:00.10,0:00:01.95,Default,,0,0,0,,desde o pentacampeonato mundial em
+Dialogue: 0,0:00:01.96,0:00:03.07,Default,,0,0,0,,dois mil e dois a
+Dialogue: 0,0:00:03.08,0:00:04.83,Default,,0,0,0,,seleção brasileira se transformou em
+Dialogue: 0,0:00:04.85,0:00:07.96,Default,,0,0,0,,uma máquina de decepções eliminações
+Dialogue: 0,0:00:07.97,0:00:10.30,Default,,0,0,0,,dolorosas vexame histórico do sete
+Dialogue: 0,0:00:10.31,0:00:11.03,Default,,0,0,0,,a um em casa e
+Dialogue: 0,0:00:11.05,0:00:13.10,Default,,0,0,0,,gerações talentosas que sucumbiram à
+Dialogue: 0,0:00:13.11,0:00:14.56,Default,,0,0,0,,falta de disciplina e ao
+Dialogue: 0,0:00:14.57,0:00:17.46,Default,,0,0,0,,comodismo a camisa mais pesada
+Dialogue: 0,0:00:17.47,0:00:18.85,Default,,0,0,0,,do futebol mundial passou a
+Dialogue: 0,0:00:18.86,0:00:20.32,Default,,0,0,0,,ser tratada por muitos como
+Dialogue: 0,0:00:20.33,0:00:22.00,Default,,0,0,0,,passarela de vaidades e clube
+Dialogue: 0,0:00:22.01,0:00:24.66,Default,,0,0,0,,de amigos treinadores caíam um
+Dialogue: 0,0:00:24.67,0:00:25.93,Default,,0,0,0,,após o outro mas a
+Dialogue: 0,0:00:25.95,0:00:27.92,Default,,0,0,0,,estrutura viciada nos bastidores da
+Dialogue: 0,0:00:27.93,0:00:31.40,Default,,0,0,0,,cbf continuava intocável o torcedor
+Dialogue: 0,0:00:31.41,0:00:33.03,Default,,0,0,0,,brasileiro cansou de sofrer e
+Dialogue: 0,0:00:33.05,0:00:34.76,Default,,0,0,0,,abandonou o patriotismo verde e
+Dialogue: 0,0:00:34.77,0:00:37.30,Default,,0,0,0,,amarelo diante do abismo e
+Dialogue: 0,0:00:37.31,0:00:39.22,Default,,0,0,0,,da pressão popular a cbf
+Dialogue: 0,0:00:39.23,0:00:40.57,Default,,0,0,0,,quebrou um tabu centenário e
+Dialogue: 0,0:00:40.58,0:00:42.03,Default,,0,0,0,,tomou a decisão mais drástica
+Dialogue: 0,0:00:42.05,0:00:43.72,Default,,0,0,0,,de sua história contratar um
+Dialogue: 0,0:00:43.73,0:00:45.83,Default,,0,0,0,,treinador estrangeiro de elite mundial
+Dialogue: 0,0:00:46.70,0:00:48.83,Default,,0,0,0,,carlo ancelotti o técnico mais
+Dialogue: 0,0:00:48.85,0:00:51.06,Default,,0,0,0,,vitorioso da champions league aceitou
+Dialogue: 0,0:00:51.07,0:00:52.16,Default,,0,0,0,,o desafio de comandar a
+Dialogue: 0,0:00:52.17,0:00:55.07,Default,,0,0,0,,reconstrução da amarelinha don carlo
+Dialogue: 0,0:00:55.08,0:00:56.93,Default,,0,0,0,,não trouxe apenas bagagem tática
+Dialogue: 0,0:00:57.20,0:00:59.57,Default,,0,0,0,,trouxe autoridade inquestionável calma de
+Dialogue: 0,0:00:59.58,0:01:01.31,Default,,0,0,0,,campeão e a coragem necessária
+Dialogue: 0,0:01:01.32,0:01:03.07,Default,,0,0,0,,para tomar medidas impopulares que
+Dialogue: 0,0:01:03.08,0:01:05.15,Default,,0,0,0,,nenhum comandante brasileiro teve peito
+Dialogue: 0,0:01:05.16,0:01:07.36,Default,,0,0,0,,de adotar a primeira atitude
+Dialogue: 0,0:01:07.37,0:01:08.88,Default,,0,0,0,,de ancelotti foi uma verdadeira
+Dialogue: 0,0:01:08.90,0:01:12.28,Default,,0,0,0,,revolução silenciosa nos bastidores o
+Dialogue: 0,0:01:12.30,0:01:14.26,Default,,0,0,0,,fim dos privilégios de celebridade
+Dialogue: 0,0:01:14.51,0:01:15.57,Default,,0,0,0,,o fim das visitas de
+Dialogue: 0,0:01:15.58,0:01:17.48,Default,,0,0,0,,influenciadores e o corte impiedoso
+Dialogue: 0,0:01:17.50,0:01:19.07,Default,,0,0,0,,de medalhões que não demonstravam
+Dialogue: 0,0:01:19.08,0:01:22.10,Default,,0,0,0,,comprometimento físico ou tático nesta
+Dialogue: 0,0:01:22.11,0:01:23.66,Default,,0,0,0,,data fifa de outubro a
+Dialogue: 0,0:01:23.67,0:01:24.93,Default,,0,0,0,,lista de convocados e as
+Dialogue: 0,0:01:24.95,0:01:26.58,Default,,0,0,0,,atuações em campo mandaram um
+Dialogue: 0,0:01:26.60,0:01:28.60,Default,,0,0,0,,recado fulminante não há vaga
+Dialogue: 0,0:01:28.61,0:01:30.07,Default,,0,0,0,,cativa por nome ou número
+Dialogue: 0,0:01:30.08,0:01:32.55,Default,,0,0,0,,de seguidores com uma goleada
+Dialogue: 0,0:01:32.56,0:01:34.05,Default,,0,0,0,,implacável de quatro a zero
+Dialogue: 0,0:01:34.06,0:01:36.08,Default,,0,0,0,,e intensidade sufocante a seleção
+Dialogue: 0,0:01:36.10,0:01:37.67,Default,,0,0,0,,brasileira voltou a competir com
+Dialogue: 0,0:01:37.68,0:01:40.61,Default,,0,0,0,,seriedade militar a transição ainda
+Dialogue: 0,0:01:40.62,0:01:42.11,Default,,0,0,0,,está em andamento mas o
+Dialogue: 0,0:01:42.12,0:01:43.20,Default,,0,0,0,,sinal de alerta para os
+Dialogue: 0,0:01:43.21,0:01:45.81,Default,,0,0,0,,gigantes europeus já soou o
+Dialogue: 0,0:01:45.82,0:01:47.57,Default,,0,0,0,,futebol brasileiro redescobriu que o
+Dialogue: 0,0:01:47.58,0:01:49.11,Default,,0,0,0,,talento natural só atinge o
+Dialogue: 0,0:01:49.12,0:01:51.13,Default,,0,0,0,,ápice quando combinado com organização
+Dialogue: 0,0:01:51.15,0:01:53.38,Default,,0,0,0,,de nível europeu sob a
+Dialogue: 0,0:01:53.40,0:01:55.32,Default,,0,0,0,,batuta serena de carlo ancelotti
+Dialogue: 0,0:01:55.33,0:01:56.76,Default,,0,0,0,,e liderada por uma juventude
+Dialogue: 0,0:01:56.77,0:01:57.82,Default,,0,0,0,,faminta e sem medo de
+Dialogue: 0,0:01:57.83,0:01:59.90,Default,,0,0,0,,cara feia o gigante adormecido
+Dialogue: 0,0:01:59.91,0:02:01.28,Default,,0,0,0,,da américa do sul finalmente
+Dialogue: 0,0:02:01.30,0:02:04.78,Default,,0,0,0,,acordou e você acredita que
+Dialogue: 0,0:02:04.80,0:02:05.87,Default,,0,0,0,,don carlo é o homem
+Dialogue: 0,0:02:05.88,0:02:07.05,Default,,0,0,0,,que vai trazer o sonhado
+Dialogue: 0,0:02:07.06,0:02:08.90,Default,,0,0,0,,hexa ou a seleção brasileira
+Dialogue: 0,0:02:08.91,0:02:10.20,Default,,0,0,0,,ainda precisa de tempo para
+Dialogue: 0,0:02:10.21,0:02:11.77,Default,,0,0,0,,curar suas velhas feridas
