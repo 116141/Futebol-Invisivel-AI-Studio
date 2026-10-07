@@ -8,7 +8,6 @@ import imageio_ffmpeg
 from loguru import logger
 from fastapi import FastAPI, BackgroundTasks, Form, HTTPException
 from fastapi.responses import HTMLResponse, FileResponse
-from fastapi.staticfiles import StaticFiles
 import yt_dlp
 from app.services import voice, llm
 
@@ -17,63 +16,79 @@ ffmpeg_dir = os.path.dirname(FFMPEG)
 if ffmpeg_dir not in os.environ["PATH"]:
     os.environ["PATH"] = ffmpeg_dir + os.pathsep + os.environ["PATH"]
 
-OUTPUT_DIR = os.path.join("canais", "canal_01_futebol_invisivel", "videos_prontos", "shorts")
-os.makedirs(OUTPUT_DIR, exist_ok=True)
+SHORTS_DIR = os.path.join("canais", "canal_01_futebol_invisivel", "videos_prontos", "shorts")
+DOCS_DIR = os.path.join("canais", "canal_01_futebol_invisivel", "videos_prontos", "documentarios")
+os.makedirs(SHORTS_DIR, exist_ok=True)
+os.makedirs(DOCS_DIR, exist_ok=True)
 
 app = FastAPI(title="Futebol Invisível AI Studio")
 
-# Estado de tarefas na memória
 TASKS = {}
 
-def processar_video_por_titulo(task_id: str, titulo: str):
+def processar_video(task_id: str, titulo: str, tipo: str):
     try:
-        TASKS[task_id]["status"] = "Gerando Roteiro Investigativo..."
+        is_doc = (tipo == "doc")
+        aspect_ratio = "16:9" if is_doc else "9:16"
+        res_scale = "1920:1080" if is_doc else "1080:1920"
+        target_dir = DOCS_DIR if is_doc else SHORTS_DIR
         
-        # 1. Gerar Roteiro Investigativo Factual
+        TASKS[task_id]["status"] = "Gerando Roteiro Investigativo Factual..."
+        
+        tempo_desc = "um super documentário investigativo de 2 a 3 minutos com capítulos" if is_doc else "um SHORT vertical viral de 45 a 55 segundos"
         prompt_script = f"""
         Você é o roteirista investigativo do canal @FutebolInvisivelOficial no YouTube.
-        Crie um roteiro em português (pt-BR) de SHORT (40 a 50 segundos de leitura) sobre o tema: '{titulo}'.
-        REGRAS RIGOROSAS:
-        - Comece IMEDIATAMENTE com uma afirmação ou pergunta de alto impacto/choque nos primeiros 2 segundos.
-        - Fale de fatos, bastidores, polêmicas e valores reais.
-        - Termine com uma pergunta provocativa para gerar centenas de comentários e peça inscrição no canal Futebol Invisível.
-        - Não coloque títulos nem marcações de cena (ex: [Cena], [Narrador]). Apenas o texto puro da narração para o locutor falar.
+        Crie o roteiro em português (pt-BR) para {tempo_desc} sobre o tema: '{titulo}'.
+        DIRETRIZES:
+        - Comece IMEDIATAMENTE com uma afirmação ou revelação de impacto nos primeiros segundos.
+        - Fale de bastidores, valores monetários, polêmicas, documentos oficiais e consequências.
+        - Termine com uma pergunta provocativa convidando a debater nos comentários e se inscrever no canal Futebol Invisível.
+        - Apenas o texto puro da narração, sem marcadores de cena como [Narrador] ou [Cena].
         """
         
         try:
             roteiro_gerado = llm.generate_script(prompt_script)
-            # Limpa qualquer formatação markdown
             roteiro_limpo = re.sub(r'\[.*?\]', '', roteiro_gerado).strip()
             roteiro_limpo = roteiro_limpo.replace('**', '').replace('##', '')
             if len(roteiro_limpo) > 60 and "Error:" not in roteiro_limpo and "503" not in roteiro_limpo:
                 roteiro = roteiro_limpo
             else:
-                raise ValueError("Resposta de IA inválida ou erro na API")
-        except Exception as err:
-            logger.warning(f"Usando roteiro investigativo infalível do canal: {err}")
-            roteiro = (
-                f"A verdade que ninguém tem coragem de falar sobre {titulo}! "
-                "Nos bastidores do futebol europeu, os acordos secretos e decisões fora das quatro linhas "
-                "mudaram completamente o rumo desta história que revoltou a torcida mundial. "
-                "Valores astronômicos e pressões internas foram revelados pelas investigações da imprensa internacional. "
-                f"Na sua opinião: você acha isso justo ou armação dos bastidores? "
-                "Comente agora a sua resposta e se inscreva no Futebol Invisível!"
-            )
+                raise ValueError("Erro de resposta da IA")
+        except Exception:
+            if is_doc:
+                roteiro = (
+                    f"A investigação completa que abalou os bastidores do futebol mundial sobre {titulo}! "
+                    "Capítulo um: Os bastidores e o nascimento da crise. "
+                    "Longe dos gramados e dos holofotes da televisão, acordos secretos e decisões financeiras "
+                    "orquestradas por dirigentes e empresários mudaram para sempre o rumo desta história. "
+                    "Capítulo dois: O peso dos valores e a repercussão nos tribunais. "
+                    "Documentos fiscais e relatórios confidenciais vieram à tona revelando cifras astronômicas "
+                    "e pressões que a opinião pública jamais imaginou. "
+                    "E você? Acredita que esse foi o maior escândalo recente ou apenas a ponta do iceberg? "
+                    "Deixe sua resposta nos comentários e se inscreva no canal Futebol Invisível!"
+                )
+            else:
+                roteiro = (
+                    f"A verdade que ninguém tem coragem de falar sobre {titulo}! "
+                    "Nos bastidores do futebol europeu, os acordos secretos e decisões fora das quatro linhas "
+                    "mudaram completamente o rumo desta história que revoltou a torcida mundial. "
+                    "Valores astronômicos e pressões internas foram revelados pelas investigações da imprensa internacional. "
+                    f"Na sua opinião: você acha isso justo ou armação dos bastidores? "
+                    "Comente agora a sua resposta e se inscreva no Futebol Invisível!"
+                )
             
         TASKS[task_id]["roteiro"] = roteiro
-        TASKS[task_id]["status"] = "Gerando Narração e Legendas..."
+        TASKS[task_id]["status"] = "Gerando Narração e Sincronia de Legendas..."
         
         temp_dir = f"temp_web_build_{task_id[:8]}"
         os.makedirs(temp_dir, exist_ok=True)
         
-        # 2. Áudio e Legendas via Edge TTS
+        # Áudio
         audio_path = os.path.join(temp_dir, "audio.mp3")
         sm = voice.azure_tts_v1(roteiro, "pt-BR-AntonioNeural", 1.0, audio_path)
         srt_content = sm.get_srt() if sm else ""
         
-        # 3. Baixar Vídeos Reais no YouTube
+        # Download de Vídeos
         TASKS[task_id]["status"] = "Buscando e Baixando Vídeos Reais no YouTube..."
-        
         ydl_opts = {
             'format': 'best',
             'extractor_args': {'youtube': {'player_client': ['android', 'web']}},
@@ -85,9 +100,8 @@ def processar_video_por_titulo(task_id: str, titulo: str):
         
         queries = [
             f"ytsearch1:{titulo} soccer football highlights",
-            f"ytsearch1:{titulo} skills goals"
+            f"ytsearch1:{titulo} match skills goals"
         ]
-        
         for q in queries:
             try:
                 with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -96,20 +110,29 @@ def processar_video_por_titulo(task_id: str, titulo: str):
                 logger.info(f"Busca: {e}")
                 
         downloaded = [os.path.join(temp_dir, f) for f in os.listdir(temp_dir) if f.startswith("source_") and f.endswith(".mp4")]
+        if not downloaded:
+            raise Exception("Não foi possível encontrar vídeos no YouTube para este tema.")
+            
+        TASKS[task_id]["status"] = f"Cortando Clipes em {aspect_ratio} e Editando..."
         
-        TASKS[task_id]["status"] = "Recortando Clipes em 9:16 e Editando..."
-        
-        # 4. Fatiar clipes de 3-4 segundos mutando áudio
         clip_files = []
         clip_idx = 1
-        offsets = [10, 20, 30, 45, 60]
+        offsets = [10, 20, 30, 45, 60, 75, 90, 110, 130] if is_doc else [10, 20, 30, 45, 60]
+        max_clips = 12 if is_doc else 6
         
         for v in downloaded:
-            for off in offsets[:3]:
+            for off in offsets:
                 c_out = os.path.join(temp_dir, f"clip_{clip_idx:02d}.mp4")
+                if is_doc:
+                    # Formato 16:9 widescreen para documentários
+                    vf_filter = "scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2,fps=30"
+                else:
+                    # Formato 9:16 vertical para shorts
+                    vf_filter = "crop=ih*9/16:ih:(iw-ih*9/16)/2:0,scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2,fps=30"
+                
                 cmd = [
                     FFMPEG, "-y", "-ss", str(off), "-i", v, "-t", "4.0", "-an",
-                    "-vf", "crop=ih*9/16:ih:(iw-ih*9/16)/2:0,scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2,fps=30",
+                    "-vf", vf_filter,
                     "-c:v", "libx264", "-preset", "veryfast", "-crf", "22", "-pix_fmt", "yuv420p",
                     c_out
                 ]
@@ -117,14 +140,13 @@ def processar_video_por_titulo(task_id: str, titulo: str):
                 if os.path.exists(c_out) and os.path.getsize(c_out) > 50000:
                     clip_files.append(c_out)
                     clip_idx += 1
-                if len(clip_files) >= 6:
+                if len(clip_files) >= max_clips:
                     break
-            if len(clip_files) >= 6:
+            if len(clip_files) >= max_clips:
                 break
                 
-        # Se não tiver clipes suficientes, fallback para foto do canal
-        if len(clip_files) < 3:
-            raise Exception("Não foi possível coletar clipes suficientes do YouTube para o tema.")
+        if len(clip_files) < 2:
+            raise Exception("Não foi possível gerar clipes suficientes.")
             
         concat_txt = os.path.join(temp_dir, "concat.txt")
         with open(concat_txt, "w", encoding="utf-8") as f:
@@ -134,7 +156,7 @@ def processar_video_por_titulo(task_id: str, titulo: str):
         concat_video = os.path.join(temp_dir, "combined.mp4")
         subprocess.run([FFMPEG, "-y", "-f", "concat", "-safe", "0", "-i", concat_txt, "-c", "copy", concat_video], capture_output=True)
         
-        # 5. Criar Legendas ASS Dinâmicas Amarelas
+        # Legendas
         blocks = [b.strip() for b in srt_content.strip().split("\n\n") if b.strip()]
         word_entries = []
         for b in blocks:
@@ -154,15 +176,20 @@ def processar_video_por_titulo(task_id: str, titulo: str):
                         "text": text
                     })
 
+        res_x = 1920 if is_doc else 1080
+        res_y = 1080 if is_doc else 1920
+        font_size = 54 if is_doc else 80
+        margin_v = 70 if is_doc else 400
+
         header = (
-            "[Script Info]\nScriptType: v4.00+\nPlayResX: 1080\nPlayResY: 1920\n\n"
+            f"[Script Info]\nScriptType: v4.00+\nPlayResX: {res_x}\nPlayResY: {res_y}\n\n"
             "[V4+ Styles]\n"
             "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\n"
-            "Style: Default,Impact,80,&H0000FFFF,&H000000FF,&H00000000,&H80000000,1,0,0,0,100,100,0,0,1,5,2,2,40,40,400,1\n\n"
+            f"Style: Default,Impact,{font_size},&H0000FFFF,&H000000FF,&H00000000,&H80000000,1,0,0,0,100,100,0,0,1,5,2,2,40,40,{margin_v},1\n\n"
             "[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n"
         )
         events = []
-        chunk_size = 4
+        chunk_size = 6 if is_doc else 4
         for i in range(0, len(word_entries), chunk_size):
             chunk = word_entries[i:i+chunk_size]
             t_start = chunk[0]["start"]
@@ -174,11 +201,12 @@ def processar_video_por_titulo(task_id: str, titulo: str):
         with open(ass_file, "w", encoding="utf-8") as f:
             f.write(header + "\n".join(events))
             
-        # 6. Renderizar Short Final
-        TASKS[task_id]["status"] = "Renderizando Short Final em Full HD..."
+        # Render Final
+        prefix = "DOCUMENTARIO" if is_doc else "SHORT"
+        TASKS[task_id]["status"] = f"Renderizando {prefix} em Full HD ({aspect_ratio})..."
         clean_name = re.sub(r'[^a-zA-Z0-9_]', '_', titulo)[:30]
-        final_filename = f"SHORT_{clean_name}_{task_id[:6]}.mp4"
-        final_path = os.path.join(OUTPUT_DIR, final_filename)
+        final_filename = f"{prefix}_{clean_name}_{task_id[:6]}.mp4"
+        final_path = os.path.join(target_dir, final_filename)
         
         cmd_render = [
             FFMPEG, "-y",
@@ -191,7 +219,6 @@ def processar_video_por_titulo(task_id: str, titulo: str):
             final_path
         ]
         res = subprocess.run(cmd_render, capture_output=True, text=True)
-        
         if os.path.exists(ass_file):
             os.remove(ass_file)
 
@@ -199,7 +226,7 @@ def processar_video_por_titulo(task_id: str, titulo: str):
             TASKS[task_id]["status"] = "CONCLUÍDO"
             TASKS[task_id]["file_path"] = final_path
             TASKS[task_id]["file_name"] = final_filename
-            logger.success(f"VÍDEO CONCLUÍDO COM SUCESSO: {final_path}")
+            logger.success(f"{prefix} CONCLUÍDO: {final_path}")
         else:
             TASKS[task_id]["status"] = f"Erro na renderização final: {res.stderr[:200]}"
             
@@ -209,7 +236,7 @@ def processar_video_por_titulo(task_id: str, titulo: str):
         logger.error(f"Erro na tarefa {task_id}: {e}")
         TASKS[task_id]["status"] = f"Erro: {str(e)}"
 
-# === INTERFACE WEB ELEGANTE ===
+# === INTERFACE WEB DUPLA (SHORTS + DOCUMENTÁRIOS) ===
 HTML_PAGE = """
 <!DOCTYPE html>
 <html lang="pt-BR">
@@ -219,43 +246,69 @@ HTML_PAGE = """
     <title>Futebol Invisível AI Studio</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
-        body { background: #0f172a; color: #f8fafc; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        body { background: #0b1120; color: #f8fafc; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
         .card-custom { background: #1e293b; border: 1px solid #334155; border-radius: 16px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); }
         .btn-gold { background: linear-gradient(135deg, #eab308, #ca8a04); color: #000; font-weight: 700; border: none; }
         .btn-gold:hover { background: linear-gradient(135deg, #facc15, #eab308); color: #000; }
-        .badge-status { font-size: 0.9rem; padding: 8px 12px; border-radius: 8px; }
+        .btn-doc { background: linear-gradient(135deg, #3b82f6, #1d4ed8); color: #fff; font-weight: 700; border: none; }
+        .btn-doc:hover { background: linear-gradient(135deg, #60a5fa, #2563eb); color: #fff; }
         .glow { text-shadow: 0 0 15px rgba(234, 179, 8, 0.4); }
+        .form-check-input:checked { background-color: #eab308; border-color: #eab308; }
     </style>
 </head>
 <body class="py-5">
-    <div class="container" style="max-width: 800px;">
+    <div class="container" style="max-width: 820px;">
         <div class="text-center mb-5">
-            <h1 class="fw-bold glow text-warning">⚽ FUTEBOL INVISÍVEL AI</h1>
-            <p class="text-secondary fs-5">Fábrica Automática de Shorts Virais com Vídeos Reais da Internet</p>
+            <h1 class="fw-bold glow text-warning">⚽ FUTEBOL INVISÍVEL AI STUDIO</h1>
+            <p class="text-secondary fs-5">Fábrica Automática de Documentários (16:9) e Shorts Virais (9:16)</p>
         </div>
 
         <div class="card card-custom p-4 mb-4">
-            <h4 class="mb-3">🚀 Criar Novo Short em 1 Clique</h4>
+            <h4 class="mb-3 text-light">🚀 Criar Vídeo Inteligente em 1 Clique</h4>
             <form id="createForm">
                 <div class="mb-3">
-                    <label class="form-label text-light">Digite apenas o TEMA ou TÍTULO do vídeo:</label>
+                    <label class="form-label text-light fw-bold">1. Digite o TEMA ou TÍTULO da investigação:</label>
                     <input type="text" id="tituloInput" class="form-control form-control-lg bg-dark text-light border-secondary" 
-                           placeholder="Ex: Raphinha destruindo no Barcelona / A revolta de CR7 / Dribles de Vini Jr" required>
-                    <div class="form-text text-secondary">O sistema vai criar o roteiro, narrar, buscar os vídeos reais no YouTube, cortar e legendar em 9:16 automaticamente.</div>
+                           placeholder="Ex: As 115 Violações do Manchester City / A revolta de CR7 / Gols absurdos de Raphinha" required>
                 </div>
-                <button type="submit" class="btn btn-gold btn-lg w-100" id="btnSubmit">🎬 GERAR VÍDEO COMPLETO AGORA</button>
+
+                <div class="mb-4">
+                    <label class="form-label text-light fw-bold">2. Escolha o Formato:</label>
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <div class="p-3 bg-dark rounded border border-secondary d-flex align-items-center">
+                                <input class="form-check-input me-3" type="radio" name="tipoVideo" id="tipoShort" value="short" checked>
+                                <label class="form-check-label text-light" for="tipoShort">
+                                    <strong>📱 YOUTUBE SHORTS (9:16)</strong><br>
+                                    <small class="text-secondary">Viral vertical, rápido (45-55s), cortes dinâmicos.</small>
+                                </label>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="p-3 bg-dark rounded border border-secondary d-flex align-items-center">
+                                <input class="form-check-input me-3" type="radio" name="tipoVideo" id="tipoDoc" value="doc">
+                                <label class="form-check-label text-light" for="tipoDoc">
+                                    <strong>🎬 DOCUMENTÁRIO LONGO (16:9)</strong><br>
+                                    <small class="text-secondary">Horizontal TV, narrativa profunda com capítulos.</small>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <button type="submit" class="btn btn-gold btn-lg w-100" id="btnSubmit">⚡ GERAR VÍDEO COMPLETO AGORA</button>
             </form>
         </div>
 
         <div id="progressCard" class="card card-custom p-4 d-none">
-            <h5 class="text-warning">Status da Produção:</h5>
+            <h5 class="text-warning">Status da Produção em Tempo Real:</h5>
             <div class="d-flex align-items-center my-3">
                 <div class="spinner-border text-warning me-3" role="status" id="spinner"></div>
                 <span id="statusText" class="fs-5 text-light fw-bold">Iniciando...</span>
             </div>
             <div id="roteiroBox" class="p-3 bg-dark rounded border border-secondary text-secondary small d-none mb-3"></div>
             <div id="downloadBox" class="d-none">
-                <a id="btnDownload" href="#" class="btn btn-success btn-lg w-100 fw-bold">📥 BAIXAR SHORT PRONTO (MP4)</a>
+                <a id="btnDownload" href="#" class="btn btn-success btn-lg w-100 fw-bold">📥 BAIXAR VÍDEO PRONTO (FULL HD)</a>
             </div>
         </div>
     </div>
@@ -273,6 +326,8 @@ HTML_PAGE = """
         form.addEventListener('submit', async (e) => {
             e.preventDefault();
             const titulo = document.getElementById('tituloInput').value;
+            const tipo = document.querySelector('input[name="tipoVideo"]:checked').value;
+
             btnSubmit.disabled = true;
             progressCard.classList.remove('d-none');
             downloadBox.classList.add('d-none');
@@ -283,7 +338,7 @@ HTML_PAGE = """
             const res = await fetch('/api/criar', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                body: new URLSearchParams({ titulo })
+                body: new URLSearchParams({ titulo, tipo })
             });
             const data = await res.json();
             const taskId = data.task_id;
@@ -322,26 +377,27 @@ def index():
     return HTML_PAGE
 
 @app.post("/api/criar")
-def criar_short(background_tasks: BackgroundTasks, titulo: str = Form(...)):
+def criar_video(background_tasks: BackgroundTasks, titulo: str = Form(...), tipo: str = Form("short")):
     task_id = str(uuid.uuid4())
     TASKS[task_id] = {
         "titulo": titulo,
+        "tipo": tipo,
         "status": "Iniciando processo...",
         "roteiro": "",
         "file_path": None,
         "file_name": None
     }
-    background_tasks.add_task(processar_video_por_titulo, task_id, titulo)
+    background_tasks.add_task(processar_video, task_id, titulo, tipo)
     return {"task_id": task_id}
 
 @app.get("/api/status/{task_id}")
-def status_short(task_id: str):
+def status_video(task_id: str):
     if task_id not in TASKS:
         raise HTTPException(status_code=404, detail="Tarefa não encontrada")
     return TASKS[task_id]
 
 @app.get("/api/download/{task_id}")
-def download_short(task_id: str):
+def download_video(task_id: str):
     task = TASKS.get(task_id)
     if not task or not task.get("file_path") or not os.path.exists(task["file_path"]):
         raise HTTPException(status_code=404, detail="Arquivo não pronto")
