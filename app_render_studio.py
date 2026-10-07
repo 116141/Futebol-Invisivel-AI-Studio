@@ -41,14 +41,16 @@ def processar_video_por_titulo(task_id: str, titulo: str):
         """
         
         try:
-            roteiro = llm.generate_script(prompt_script)
+            roteiro_gerado = llm.generate_script(prompt_script)
             # Limpa qualquer formatação markdown
-            roteiro = re.sub(r'\[.*?\]', '', roteiro).strip()
-            roteiro = roteiro.replace('**', '').replace('##', '')
-            if len(roteiro) < 50:
-                raise ValueError("Roteiro muito curto")
-        except Exception:
-            # Fallback inteligente e investigativo se a API de IA não responder
+            roteiro_limpo = re.sub(r'\[.*?\]', '', roteiro_gerado).strip()
+            roteiro_limpo = roteiro_limpo.replace('**', '').replace('##', '')
+            if len(roteiro_limpo) > 60 and "Error:" not in roteiro_limpo and "503" not in roteiro_limpo:
+                roteiro = roteiro_limpo
+            else:
+                raise ValueError("Resposta de IA inválida ou erro na API")
+        except Exception as err:
+            logger.warning(f"Usando roteiro investigativo infalível do canal: {err}")
             roteiro = (
                 f"A verdade que ninguém tem coragem de falar sobre {titulo}! "
                 "Nos bastidores do futebol europeu, os acordos secretos e decisões fora das quatro linhas "
@@ -168,7 +170,7 @@ def processar_video_por_titulo(task_id: str, titulo: str):
             phrase = " ".join([c["text"].upper() for c in chunk])
             events.append(f"Dialogue: 0,{t_start},{t_end},Default,,0,0,0,,{phrase}")
 
-        ass_file = os.path.join(temp_dir, "subs.ass")
+        ass_file = "temp_render_studio.ass"
         with open(ass_file, "w", encoding="utf-8") as f:
             f.write(header + "\n".join(events))
             
@@ -190,6 +192,9 @@ def processar_video_por_titulo(task_id: str, titulo: str):
         ]
         res = subprocess.run(cmd_render, capture_output=True, text=True)
         
+        if os.path.exists(ass_file):
+            os.remove(ass_file)
+
         if os.path.exists(final_path) and os.path.getsize(final_path) > 1000000:
             TASKS[task_id]["status"] = "CONCLUÍDO"
             TASKS[task_id]["file_path"] = final_path
