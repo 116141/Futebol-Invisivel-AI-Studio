@@ -26,13 +26,30 @@ app = FastAPI(title="Futebol Invisível AI Studio")
 
 TASKS = {}
 
-def processar_video(task_id: str, titulo: str, tipo: str, uploaded_image_paths: list = None):
+def processar_video(task_id: str, titulo: str, tipo: str, uploaded_image_paths: list = None, promo_raw: str = ""):
     try:
         is_doc = (tipo == "doc")
         is_afiliado = (tipo == "afiliado_moda")
         aspect_ratio = "16:9" if is_doc else "9:16"
         res_scale = "1920:1080" if is_doc else "1080:1920"
         target_dir = DOCS_DIR if is_doc else SHORTS_DIR
+        
+        # Extrair link de afiliado e detalhes do texto bruto do AliExpress se fornecido
+        link_afiliado = ""
+        preco_afiliado = ""
+        if promo_raw:
+            link_match = re.search(r'https?://[^\s]+', promo_raw)
+            if link_match:
+                link_afiliado = link_match.group(0).rstrip('.,;)')
+            preco_match = re.search(r'(?:USD|R\$|US\$|EUR)\s*[\d\.,]+', promo_raw, re.IGNORECASE)
+            if preco_match:
+                preco_afiliado = preco_match.group(0)
+                
+            # Se o título estiver vazio ou genérico, extrai o nome do produto do texto promocional
+            if len(titulo.strip()) < 5:
+                linhas = [l.strip() for l in promo_raw.splitlines() if l.strip() and not l.startswith("http") and "preço" not in l.lower() and "compre" not in l.lower() and "recomendações" not in l.lower()]
+                if linhas:
+                    titulo = linhas[0][:80]
         
         if is_afiliado:
             TASKS[task_id]["status"] = "Gerando Copywriting Viral de Vendas (Moda Feminina)..."
@@ -276,6 +293,26 @@ def processar_video(task_id: str, titulo: str, tipo: str, uploaded_image_paths: 
             TASKS[task_id]["status"] = "CONCLUÍDO"
             TASKS[task_id]["file_path"] = final_path
             TASKS[task_id]["file_name"] = final_filename
+            
+            # Pacote Completo de Postagem (1-Clique)
+            link_display = link_afiliado if link_afiliado else "https://s.click.aliexpress.com/..."
+            if is_afiliado:
+                TASKS[task_id]["post_titulo"] = f"{titulo[:65]}! ✨ | Alana Cruz #Shorts"
+                TASKS[task_id]["post_descricao"] = (
+                    f"Meninas, olha essa perfeição: {titulo}! Modela o corpo, caimento impecável e super confortável. 💕\n\n"
+                    f"🛍️ Link oficial com desconto exclusivo:\n👉 {link_display}\n\n"
+                    f"Se inscreva no canal Alana Cruz para mais achadinhos elegantes de moda feminina! ✨\n\n"
+                    f"#modafeminina #vestidofesta #achadinhos #aliexpress #lookdodia #shorts"
+                )
+                TASKS[task_id]["post_comentario"] = f"🛍️ Link oficial com desconto promocional:\n👉 {link_display} 💕"
+            else:
+                TASKS[task_id]["post_titulo"] = f"{titulo[:70]} | Futebol Invisível #Shorts"
+                TASKS[task_id]["post_descricao"] = (
+                    f"A investigação completa dos bastidores sobre {titulo}! Inscreva-se no canal Futebol Invisível.\n\n"
+                    f"#futebol #futebolinvisivel #shorts #polemica #bastidores"
+                )
+                TASKS[task_id]["post_comentario"] = "Deixe sua opinião nos comentários e se inscreva no canal Futebol Invisível!"
+                
             logger.success(f"{prefix} CONCLUÍDO: {final_path}")
         else:
             TASKS[task_id]["status"] = f"Erro na renderização final: {res.stderr[:200]}"
@@ -353,6 +390,13 @@ HTML_PAGE = """
                             </div>
                         </div>
                     </div>
+                <div class="mb-3" id="campoPromoBox">
+                    <label class="form-label text-light fw-bold">📋 Ou cole o Texto Promocional do AliExpress (com o Link e Preço):</label>
+                    <textarea id="promoInput" class="form-control bg-dark text-light border-secondary" rows="3" 
+                              placeholder="Cole aqui o que você copiou do AliExpress (ex: Principais recomendações... Agora preço: USD 3.18... Clique e compre: https://s.click.aliexpress.com/...)"></textarea>
+                    <small class="text-secondary">O estúdio vai ler o produto, o preço e o seu link direto, gerando o roteiro e o kit completo de postagem para copiar e colar!</small>
+                </div>
+
                 <div class="mb-4">
                     <label class="form-label text-light fw-bold">3. Fotos Oficiais do Produto (Opcional - Ex: Baixadas do AliExpress):</label>
                     <input type="file" id="fotosInput" class="form-control bg-dark text-light border-secondary" multiple accept="image/*">
@@ -376,10 +420,41 @@ HTML_PAGE = """
                 <div class="spinner-border text-warning me-3" role="status" id="spinner"></div>
                 <span id="statusText" class="fs-5 text-light fw-bold">Iniciando...</span>
             </div>
-            <div id="roteiroBox" class="p-3 bg-dark rounded border border-secondary text-secondary small d-none mb-3"></div>
-            <div id="downloadBox" class="d-none">
+            
+            <div id="downloadBox" class="d-none mb-3">
                 <a id="btnDownload" href="#" class="btn btn-success btn-lg w-100 fw-bold">📥 BAIXAR VÍDEO PRONTO (FULL HD)</a>
             </div>
+
+            <!-- KIT COMPLETO DE POSTAGEM PRONTO (1-CLIQUE) -->
+            <div id="postKitBox" class="d-none p-3 bg-dark rounded border border-warning">
+                <h5 class="text-warning fw-bold mb-3">🚀 Kit Pronto Para Postar (Copie e Cole):</h5>
+                
+                <div class="mb-3">
+                    <label class="text-secondary small fw-bold">TÍTULO SUGERIDO:</label>
+                    <div class="input-group">
+                        <input type="text" id="kitTitulo" class="form-control bg-black text-light border-secondary" readonly>
+                        <button class="btn btn-outline-warning" onclick="copiarTexto('kitTitulo')">Copiar</button>
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <label class="text-secondary small fw-bold">DESCRIÇÃO COM HASHTAGS:</label>
+                    <div class="input-group">
+                        <textarea id="kitDescricao" class="form-control bg-black text-light border-secondary" rows="4" readonly></textarea>
+                        <button class="btn btn-outline-warning" onclick="copiarTexto('kitDescricao')">Copiar</button>
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <label class="text-secondary small fw-bold">1º COMENTÁRIO FIXADO (COM SEU LINK DE COMPRA):</label>
+                    <div class="input-group">
+                        <input type="text" id="kitComentario" class="form-control bg-black text-light border-secondary" readonly>
+                        <button class="btn btn-outline-warning" onclick="copiarTexto('kitComentario')">Copiar</button>
+                    </div>
+                </div>
+            </div>
+
+            <div id="roteiroBox" class="p-3 bg-dark rounded border border-secondary text-secondary small d-none mt-3"></div>
         </div>
     </div>
 
@@ -435,15 +510,25 @@ HTML_PAGE = """
         setInterval(carregarTarefas, 3000);
         carregarTarefas();
 
+        function copiarTexto(elementId) {
+            const el = document.getElementById(elementId);
+            el.select();
+            document.execCommand('copy');
+            alert('Copiado para a área de transferência! Pronto para colar no YouTube/TikTok!');
+        }
+
         form.addEventListener('submit', async (e) => {
             e.preventDefault();
             const titulo = document.getElementById('tituloInput').value;
             const tipo = document.querySelector('input[name="tipoVideo"]:checked').value;
+            const promo = document.getElementById('promoInput') ? document.getElementById('promoInput').value : '';
             const fotosInput = document.getElementById('fotosInput');
+            const postKitBox = document.getElementById('postKitBox');
 
             btnSubmit.disabled = true;
             progressCard.classList.remove('d-none');
             downloadBox.classList.add('d-none');
+            postKitBox.classList.add('d-none');
             roteiroBox.classList.add('d-none');
             spinner.classList.remove('d-none');
             statusText.innerText = "Criando tarefa no servidor...";
@@ -451,6 +536,7 @@ HTML_PAGE = """
             const formData = new FormData();
             formData.append('titulo', titulo);
             formData.append('tipo', tipo);
+            formData.append('promo', promo);
             if (fotosInput.files) {
                 for (let i = 0; i < fotosInput.files.length; i++) {
                     formData.append('fotos', fotosInput.files[i]);
@@ -481,6 +567,14 @@ HTML_PAGE = """
                     statusText.innerText = "✅ VÍDEO 100% PRONTO EM FULL HD!";
                     btnDownload.href = `/api/download/${taskId}`;
                     downloadBox.classList.remove('d-none');
+
+                    if (task.post_titulo) {
+                        document.getElementById('kitTitulo').value = task.post_titulo;
+                        document.getElementById('kitDescricao').value = task.post_descricao;
+                        document.getElementById('kitComentario').value = task.post_comentario;
+                        postKitBox.classList.remove('d-none');
+                    }
+
                     btnSubmit.disabled = false;
                     carregarTarefas();
                 } else if (task.status.startsWith("Erro")) {
@@ -507,8 +601,9 @@ def listar_tarefas():
 @app.post("/api/criar")
 async def criar_video(
     background_tasks: BackgroundTasks,
-    titulo: str = Form(...),
+    titulo: str = Form(""),
     tipo: str = Form("short"),
+    promo: str = Form(""),
     fotos: Optional[List[UploadFile]] = File(None)
 ):
     task_id = str(uuid.uuid4())
@@ -527,14 +622,17 @@ async def criar_video(
                     uploaded_image_paths.append(dest)
                     
     TASKS[task_id] = {
-        "titulo": titulo,
+        "titulo": titulo if titulo else "Produto de Moda",
         "tipo": tipo,
         "status": "Iniciando processo...",
         "roteiro": "",
         "file_path": None,
-        "file_name": None
+        "file_name": None,
+        "post_titulo": "",
+        "post_descricao": "",
+        "post_comentario": ""
     }
-    background_tasks.add_task(processar_video, task_id, titulo, tipo, uploaded_image_paths)
+    background_tasks.add_task(processar_video, task_id, titulo, tipo, uploaded_image_paths, promo)
     return {"task_id": task_id}
 
 @app.get("/api/status/{task_id}")
