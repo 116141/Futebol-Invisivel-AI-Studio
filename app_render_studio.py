@@ -162,12 +162,18 @@ def processar_video(task_id: str, titulo: str, tipo: str, uploaded_image_paths: 
             
             prompt_script = f"""
             Você é o roteirista investigativo do canal @FutebolInvisivelOficial no YouTube.
-            Crie um roteiro ORIGINAL e HIPNOTIZANTE em português (pt-BR) para {tempo_desc} sobre o tema: '{titulo}'.
+            Crie um roteiro ORIGINAL, INÉDITO e HIPNOTIZANTE em português (pt-BR) para {tempo_desc} sobre o tema: '{titulo}'.
             
             PEGADA OBRIGATÓRIA DESTE VÍDEO ({pegada_escolhida['nome']}):
             {pegada_escolhida['diretriz']}
             
-            try:
+            DIRETRIZES ANTI-CONTEÚDO REPETITIVO (CRÍTICO PARA MONETIZAÇÃO DO YOUTUBE):
+            - PROIBIDO usar introduções repetitivas como 'A verdade que ninguém fala', 'Nos bastidores...', 'Você não vai acreditar'.
+            - Comece nos primeiros 2 segundos com um FATO ESPECÍFICO, uma data, uma cifra milionária, uma frase marcante ou uma ação direta.
+            - Desenvolva uma linha narrativa própria conectando eventos reais e o impacto psicológico/financeiro no futebol.
+            - Termine de forma dinâmica convidando o espectador a opinar nos comentários e se inscrever no canal Futebol Invisível.
+            - Retorne APENAS o texto falado da narração pura, sem marcadores como [Narrador], sem [Cena], sem emojis.
+            """
                 roteiro_gerado = llm.generate_script(prompt_script)
                 roteiro_limpo = re.sub(r'\[.*?\]', '', roteiro_gerado).strip()
                 roteiro_limpo = roteiro_limpo.replace('**', '').replace('##', '')
