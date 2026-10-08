@@ -125,51 +125,58 @@ def processar_video(task_id: str, titulo: str, tipo: str, uploaded_image_paths: 
             - Retorne APENAS o texto falado puro, sem [Cena], sem [Alana], sem aspas.
             """
         else:
-            TASKS[task_id]["status"] = "Gerando Roteiro Investigativo Factual..."
+            TASKS[task_id]["status"] = "Selecionando Ângulo Investigativo Exclusivo..."
             voz_locutor = "pt-BR-AntonioNeural"
-            tempo_desc = "um super documentário investigativo de 2 a 3 minutos com capítulos" if is_doc else "um SHORT vertical viral de 45 a 55 segundos"
+            tempo_desc = "um super documentário investigativo de 2 a 3 minutos com capítulos" if is_doc else "um SHORT vertical viral de 40 a 50 segundos"
+            
+            # Sistema de 4 Pegadas Diferentes para o Canal de Futebol Não Ficar Repetitivo
+            pegadas_futebol = [
+                {
+                    "nome": "ESCÂNDALO_E_VALORES",
+                    "diretriz": "FOCO EM DINHEIRO, MULTAS E ACORDOS SECRETOS. Comece revelando uma quantia astronômica ou cláusula oculta que a diretoria tentou abafar. Use tom jornalístico investigativo sério e direto.",
+                    "fallback_short": f"Milhões de euros em jogo e uma cláusula que ninguém podia saber! Os bastidores da negociação envolvendo {titulo} revelam um contrato confidencial que mudou tudo no vestiário. Dirigentes tentaram esconder os números reais, mas a verdade vazou na imprensa europeia. Você aceitaria esse valor? Comente e se inscreva no Futebol Invisível!",
+                    "fallback_doc": f"A rota do dinheiro e a verdade oculta sobre {titulo}! Capítulo um: O contrato que a diretoria quis queimar. Nos bastidores do futebol, planilhas financeiras mostram valores astronômicos e comissões ilícitas. Capítulo dois: As consequências no vestiário e a revolta dos atletas. Quem realmente lucrou com isso? Comente e se inscreva no Futebol Invisível!"
+                },
+                {
+                    "nome": "TRAIÇÃO_E_POLÊMICA_INTERNA",
+                    "diretriz": "FOCO EM RACHA DE ELENCO, MOTIM E TRAIÇÃO. Comece com um atrito violento entre jogadores ou técnico nos vestiários. Tom tenso, misterioso e chocante.",
+                    "fallback_short": f"O clima esquentou nos vestiários e o elenco rachou de vez por causa de {titulo}! Testemunhas relatam discussões acaloradas entre os líderes do time que as câmeras de TV não mostraram. As decisões impostas pela diretoria geraram uma guerra de egos sem volta. De que lado você ficaria? Diga nos comentários e siga o Futebol Invisível!",
+                    "fallback_doc": f"A ruptura interna e o motim secreto sobre {titulo}! Capítulo um: Portas fechadas e o estopim da briga. O que parecia um ambiente tranquilo virou um campo de batalha interno. Capítulo dois: O silêncio forçado e as saídas iminentes. Jogadores ameaçaram greve caso a diretoria não recuasse. Essa crise tem conserto? Participe nos comentários e se inscreva no Futebol Invisível!"
+                },
+                {
+                    "nome": "EMOÇÃO_E_LEGADO_HISTÓRICO",
+                    "diretriz": "FOCO EM GLÓRIA, LÁGRIMAS, PRESSÃO E ETERNIDADE. Comece narrando o peso de uma decisão, a dor da torcida ou um momento épico inesquecível. Tom épico, solene e comovente.",
+                    "fallback_short": f"O dia em que o futebol se curvou e o mundo inteiro se emocionou com {titulo}! Anos de pressão extrema, cobranças cruéis e a resposta definitiva dentro das quatro linhas. O choro e o desabafo diante de multidões provam que a história foi reescrita para sempre. Ele já é uma lenda intocável? Deixe seu tributo e se inscreva no Futebol Invisível!",
+                    "fallback_doc": f"A consagração e o preço da eternidade em {titulo}! Capítulo um: O calvário e as lágrimas antes da glória. Foram anos carregando o peso das críticas nos ombros. Capítulo dois: O adeus épico e o silêncio do estádio. Palavras que calaram a crítica mundial e marcaram gerações. Algum dia veremos algo parecido? Comente sua homenagem e siga o canal Futebol Invisível!"
+                },
+                {
+                    "nome": "VINGANÇA_E_A_RESPOSTA_NO_CAMPO",
+                    "diretriz": "FOCO EM VOLTA POR CIMA, HUMILHAÇÃO DE RIVAIS E RESPOSTA AOS CRÍTICOS. Comece citando uma frase que duvidou dele ou uma injustiça que foi vingada dentro de campo. Tom agressivo, vibrante e provocador.",
+                    "fallback_short": f"Eles duvidaram, zombaram da cara dele, mas a resposta de {titulo} calou o planeta! Chamado de acabado e descartado pelos especialistas, ele entrou em campo com sangue nos olhos para destruir todas as previsões. A vingança foi servida no momento mais decisivo da temporada. Quem ri por último ri melhor? Comente quem errou a previsão e se inscreva no Futebol Invisível!",
+                    "fallback_doc": f"A vingança definitiva e o silêncio dos críticos sobre {titulo}! Capítulo um: As humilhações e o descarte público. A imprensa cravou o fim, mas nos bastidores a fúria estava armada. Capítulo dois: O massacre em campo e o troco histórico. Uma exibição impecável que desmontou planos milionários de rivais. Você também duvidou dele? Confesse nos comentários e se inscreva no Futebol Invisível!"
+                }
+            ]
+            
+            pegada_escolhida = random.choice(pegadas_futebol)
+            logger.info(f"Pegada do Roteiro de Futebol Selecionada: {pegada_escolhida['nome']}")
+            
             prompt_script = f"""
             Você é o roteirista investigativo do canal @FutebolInvisivelOficial no YouTube.
-            Crie o roteiro em português (pt-BR) para {tempo_desc} sobre o tema: '{titulo}'.
-            DIRETRIZES:
-            - Comece IMEDIATAMENTE com uma afirmação ou revelação de impacto nos primeiros segundos.
-            - Fale de bastidores, valores monetários, polêmicas, documentos oficiais e consequências.
-            - Termine com uma pergunta provocativa convidando a debater nos comentários e se inscrever no canal Futebol Invisível.
-            - Apenas o texto puro da narração, sem marcadores de cena como [Narrador] ou [Cena].
-            """
-        
-        try:
-            roteiro_gerado = llm.generate_script(prompt_script)
-            roteiro_limpo = re.sub(r'\[.*?\]', '', roteiro_gerado).strip()
-            roteiro_limpo = roteiro_limpo.replace('**', '').replace('##', '')
-            if len(roteiro_limpo) > 60 and "Error:" not in roteiro_limpo and "503" not in roteiro_limpo:
-                roteiro = roteiro_limpo
-            else:
-                raise ValueError("Erro de resposta da IA")
-        except Exception:
-            if is_afiliado:
-                roteiro = copy_escolhida["fallback"]
-            elif is_doc:
-                roteiro = (
-                    f"A investigação completa que abalou os bastidores do futebol mundial sobre {titulo}! "
-                    "Capítulo um: Os bastidores e o nascimento da crise. "
-                    "Longe dos gramados e dos holofotes da televisão, acordos secretos e decisões financeiras "
-                    "orquestradas por dirigentes e empresários mudaram para sempre o rumo desta história. "
-                    "Capítulo dois: O peso dos valores e a repercussão nos tribunais. "
-                    "Documentos fiscais e relatórios confidenciais vieram à tona revelando cifras astronômicas "
-                    "e pressões que a opinião pública jamais imaginou. "
-                    "E você? Acredita que esse foi o maior escândalo recente ou apenas a ponta do iceberg? "
-                    "Deixe sua resposta nos comentários e se inscreva no canal Futebol Invisível!"
-                )
-            else:
-                roteiro = (
-                    f"A verdade que ninguém tem coragem de falar sobre {titulo}! "
-                    "Nos bastidores do futebol europeu, os acordos secretos e decisões fora das quatro linhas "
-                    "mudaram completamente o rumo desta história que revoltou a torcida mundial. "
-                    "Valores astronômicos e pressões internas foram revelados pelas investigações da imprensa internacional. "
-                    f"Na sua opinião: você acha isso justo ou armação dos bastidores? "
-                    "Comente agora a sua resposta e se inscreva no Futebol Invisível!"
-                )
+            Crie um roteiro ORIGINAL e HIPNOTIZANTE em português (pt-BR) para {tempo_desc} sobre o tema: '{titulo}'.
+            
+            PEGADA OBRIGATÓRIA DESTE VÍDEO ({pegada_escolhida['nome']}):
+            {pegada_escolhida['diretriz']}
+            
+            try:
+                roteiro_gerado = llm.generate_script(prompt_script)
+                roteiro_limpo = re.sub(r'\[.*?\]', '', roteiro_gerado).strip()
+                roteiro_limpo = roteiro_limpo.replace('**', '').replace('##', '')
+                if len(roteiro_limpo) > 60 and "Error:" not in roteiro_limpo and "503" not in roteiro_limpo:
+                    roteiro = roteiro_limpo
+                else:
+                    raise ValueError("Erro de resposta da IA")
+            except Exception:
+                roteiro = pegada_escolhida["fallback_doc"] if is_doc else pegada_escolhida["fallback_short"]
             
         TASKS[task_id]["roteiro"] = roteiro
         TASKS[task_id]["status"] = "Gerando Narração e Sincronia de Legendas..."
