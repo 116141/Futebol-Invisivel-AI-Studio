@@ -427,8 +427,29 @@ def processar_video(task_id: str, titulo: str, tipo: str, uploaded_image_paths: 
                 if roteiro:
                     f_txt.write(f"🎙️ ROTEIRO NARRADO:\n{roteiro}\n")
             
-            TASKS[task_id]["txt_path"] = txt_path
-            TASKS[task_id]["txt_name"] = txt_filename
+            # Gerar Capa/Thumbnail Cinematográfica Profissional para Documentários
+            if is_doc:
+                try:
+                    thumb_filename = f"CAPA_{clean_name}_{task_id[:6]}.jpg"
+                    thumb_path = os.path.join(target_dir, thumb_filename)
+                    # Extrai o frame de maior impacto visual do meio do documentário
+                    vf_thumb = "scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2,drawbox=y=ih-260:color=black@0.65:width=iw:height=260:t=fill,drawtext=text='FUTEBOL INVISÍVEL':fontcolor=yellow:fontsize=75:x=(w-text_w)/2:y=h-210,drawtext=text='DOCUMENTÁRIO INVESTIGATIVO':fontcolor=white:fontsize=42:x=(w-text_w)/2:y=h-110"
+                    cmd_thumb = [
+                        FFMPEG, "-y",
+                        "-ss", "15",
+                        "-i", final_path,
+                        "-vframes", "1",
+                        "-vf", vf_thumb,
+                        "-q:v", "2",
+                        thumb_path
+                    ]
+                    subprocess.run(cmd_thumb, capture_output=True)
+                    if os.path.exists(thumb_path):
+                        TASKS[task_id]["thumb_path"] = thumb_path
+                        TASKS[task_id]["thumb_name"] = thumb_filename
+                        logger.info(f"Capa Cinematográfica Gerada: {thumb_path}")
+                except Exception as e_thumb:
+                    logger.warning(f"Não foi possível gerar thumbnail automática: {e_thumb}")
                 
             logger.success(f"{prefix} CONCLUÍDO: {final_path} | TXT: {txt_path}")
         else:
