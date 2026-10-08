@@ -20,10 +20,12 @@ if ffmpeg_dir not in os.environ["PATH"]:
 
 SHORTS_DIR = os.path.join("canais", "canal_01_futebol_invisivel", "videos_prontos", "shorts")
 DOCS_DIR = os.path.join("canais", "canal_01_futebol_invisivel", "videos_prontos", "documentarios")
+MODA_DIR = os.path.join("canais", "canal_04_achadinhos_moda_feminina", "videos_prontos")
 os.makedirs(SHORTS_DIR, exist_ok=True)
 os.makedirs(DOCS_DIR, exist_ok=True)
+os.makedirs(MODA_DIR, exist_ok=True)
 
-app = FastAPI(title="Futebol Invisível AI Studio")
+app = FastAPI(title="Futebol Invisível & Alana Cruz AI Studio")
 
 TASKS = {}
 
@@ -33,7 +35,12 @@ def processar_video(task_id: str, titulo: str, tipo: str, uploaded_image_paths: 
         is_afiliado = (tipo == "afiliado_moda")
         aspect_ratio = "16:9" if is_doc else "9:16"
         res_scale = "1920:1080" if is_doc else "1080:1920"
-        target_dir = DOCS_DIR if is_doc else SHORTS_DIR
+        if is_afiliado:
+            target_dir = MODA_DIR
+        elif is_doc:
+            target_dir = DOCS_DIR
+        else:
+            target_dir = SHORTS_DIR
         
         # Extrair link de afiliado e detalhes do texto bruto do AliExpress se fornecido
         link_afiliado = ""
