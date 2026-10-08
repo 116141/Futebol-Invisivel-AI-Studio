@@ -2,6 +2,7 @@ import os
 import sys
 import re
 import uuid
+import random
 import shutil
 import subprocess
 import imageio_ffmpeg
@@ -55,15 +56,66 @@ def processar_video(task_id: str, titulo: str, tipo: str, uploaded_image_paths: 
             TASKS[task_id]["status"] = "Gerando Copywriting Viral de Vendas (Moda Feminina)..."
             voz_locutor = "pt-BR-FranciscaNeural"  # Voz feminina envolvente para moda
             tempo_desc = "um vídeo vertical de 35 a 45 segundos para TikTok e Instagram Reels"
+            
+            # 4 Ângulos Dinâmicos de Copywriting para evitar repetição
+            estilos_copy = [
+                {
+                    "nome": "achadinho_secreto",
+                    "diretriz": "Foque no GATILHO DE DESCOBERTA E PREÇO BAIXO (ex: 'Parem tudo! Vocês não têm noção do achadinho que eu encontrei...', 'Parece que custou mil reais, mas paguei preço de banana...'). Enfatize o desconto secreto e como vale cada centavo.",
+                    "fallback": (
+                        f"Parem tudo, meninas! Vocês não têm noção da perfeição que eu acabei de encontrar: {titulo}! "
+                        "Parece que foi comprada numa boutique de luxo caríssima, mas o preço é inacreditável de tão barato! "
+                        "O tecido é maravilhoso, não amassa fácil e veste tão bem que todo mundo elogia. "
+                        "Achei o link oficial com um cupom de desconto exclusivo! Já deixei liberado no primeiro comentário fixado e na bio. "
+                        "Corre para garantir o seu antes que o estoque esgote!"
+                    )
+                },
+                {
+                    "nome": "old_money_elegancia",
+                    "diretriz": "Foque no GATILHO DE STATUS, ELEGÂNCIA E ALFAIATARIA (ex: 'Como parecer elegante e milionária sem gastar quase nada...', 'Essa é a peça que transforma qualquer mulher comum em uma mulher de respeito...'). Destaque a modelagem da cintura e caimento impecável.",
+                    "fallback": (
+                        f"Como parecer elegante, sofisticada e milionária sem gastar quase nada? O segredo é essa peça: {titulo}! "
+                        "O caimento é pura alta costura: desenha a silhueta, afina a cintura e passa uma postura de puro luxo. "
+                        "Dá pra usar em festas, eventos formais ou até num jantar especial. É aquela roupa que te faz ser o centro das atenções! "
+                        "O link com desconto garantido está no primeiro comentário fixado e na bio. Aproveita enquanto ainda tem o seu tamanho!"
+                    )
+                },
+                {
+                    "nome": "indicacao_amiga",
+                    "diretriz": "Foque no TOM DE DESABAFO E CONFISSÃO DE AMIGA (ex: 'Meninas, eu juro que não dava nada por essa roupa, mas quando chegou fiquei chocada...', 'Precisava vir correndo indicar isso pra vocês...'). Foque no toque macio, conforto real e que não aperta.",
+                    "fallback": (
+                        f"Meninas, confissão sincera: eu não esperava que fosse tão perfeito assim, mas quando vi {titulo}, fiquei apaixonada! "
+                        "O toque do tecido é macio dos sonhos, super confortável, não aperta nada e modela o corpo com uma leveza incrível. "
+                        "Chegou super rápido e a qualidade é muito acima do esperado. Vale cada centavo! "
+                        "Quem quiser o link com o preço promocional, acabei de fixar no primeiro comentário e na bio! Corre antes que acabe!"
+                    )
+                },
+                {
+                    "nome": "urgencia_tendencia",
+                    "diretriz": "Foque no GATILHO DE TENDÊNCIA VIRAL E ESCASSEZ (ex: 'Essa é oficialmente a peça mais desejada do momento na internet...', 'Se você ainda não tem, precisa garantir antes que saia do ar...'). Crie FOMO (medo de ficar de fora).",
+                    "fallback": (
+                        f"Essa é oficialmente a peça mais desejada e comentada do momento: {titulo}! "
+                        "Todo mundo nas redes sociais tá usando porque simplesmente valoriza demais o corpo e combina com absolutamente tudo. "
+                        "É aquela peça curinga que não pode faltar no guarda-roupa de uma mulher estilosa em 2026. "
+                        "Mas atenção: as unidades na promoção estão acabando muito rápido! O link oficial está no primeiro comentário fixado e na bio. Não fica sem a sua!"
+                    )
+                }
+            ]
+            
+            copy_escolhida = random.choice(estilos_copy)
+            logger.info(f"Ângulo de Copywriting Selecionado: {copy_escolhida['nome']}")
+            
             prompt_script = f"""
-            Você é uma copywriter especialista em vídeos virais de moda feminina para TikTok, Instagram Reels e Shopee/Afiliados.
-            Crie o roteiro em português (pt-BR) para {tempo_desc} promovendo a peça/tendência: '{titulo}'.
-            DIRETRIZES DE ALTA CONVERSÃO:
-            - Comece nos primeiros 3 segundos com um GANCHO IRRESISTÍVEL (ex: "Se você quer parecer milionária sem gastar quase nada...", "Essa é a peça que toda mulher estilosa está usando agora...", "Você não vai acreditar no preço dessa perfeição...").
-            - Destaque o caimento impecável, elegância, conforto e versatilidade de combinar com vários looks.
-            - Crie sensação de urgência e desejo imediato.
-            - Termine com Chamada para Ação (CTA) clara: "O link com desconto exclusivo está no primeiro comentário fixado e no link da bio! Corre antes que esgote o estoque!".
-            - Apenas o texto falado puro, sem marcadores [Narrador] ou [Cena].
+            Você é a Alana Cruz, uma influenciadora carismática de moda feminina e achadinhos elegantes.
+            Crie um roteiro falado em português (pt-BR) de {tempo_desc} promovendo a peça: '{titulo}'.
+            ESTILO ESPECÍFICO DESTE VÍDEO:
+            {copy_escolhida['diretriz']}
+            
+            REGRAS OBRIGATÓRIAS:
+            - Comece nos primeiros 2 segundos com o gancho exato do estilo escolhido.
+            - Fale de forma natural, envolvente, feminina e empática (como uma amiga estilosa).
+            - Termine chamando para clicar no link com desconto no primeiro comentário fixado e na bio.
+            - Retorne APENAS o texto falado puro, sem [Cena], sem [Alana], sem aspas.
             """
         else:
             TASKS[task_id]["status"] = "Gerando Roteiro Investigativo Factual..."
@@ -89,13 +141,7 @@ def processar_video(task_id: str, titulo: str, tipo: str, uploaded_image_paths: 
                 raise ValueError("Erro de resposta da IA")
         except Exception:
             if is_afiliado:
-                roteiro = (
-                    f"Meninas, se você quer andar arrumada e elegante sem gastar uma fortuna, olha essa perfeição: {titulo}! "
-                    "Essa peça tem um caimento dos sonhos, disfarça tudo o que precisa e modela o corpo com puro conforto. "
-                    "Combina perfeitamente tanto pro dia a dia quanto pra eventos especiais. Todo mundo que vê pergunta de onde é! "
-                    "E o melhor: achei com um cupom de desconto secreto! O link oficial está liberado na bio e no primeiro comentário fixado. "
-                    "Aproveita logo antes que essa promoção acabe e esgote todas as unidades!"
-                )
+                roteiro = copy_escolhida["fallback"]
             elif is_doc:
                 roteiro = (
                     f"A investigação completa que abalou os bastidores do futebol mundial sobre {titulo}! "
