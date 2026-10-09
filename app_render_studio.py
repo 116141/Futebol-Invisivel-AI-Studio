@@ -429,29 +429,49 @@ def processar_video(task_id: str, titulo: str, tipo: str, uploaded_image_paths: 
                 if roteiro:
                     f_txt.write(f"🎙️ ROTEIRO NARRADO:\n{roteiro}\n")
             
-            # Gerar Capa/Thumbnail Cinematográfica Profissional para Documentários
-            if is_doc:
-                try:
-                    thumb_filename = f"CAPA_{clean_name}_{task_id[:6]}.jpg"
-                    thumb_path = os.path.join(target_dir, thumb_filename)
-                    # Extrai o frame de maior impacto visual do meio do documentário
-                    vf_thumb = "scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2,drawbox=y=ih-260:color=black@0.65:width=iw:height=260:t=fill,drawtext=text='FUTEBOL INVISÍVEL':fontcolor=yellow:fontsize=75:x=(w-text_w)/2:y=h-210,drawtext=text='DOCUMENTÁRIO INVESTIGATIVO':fontcolor=white:fontsize=42:x=(w-text_w)/2:y=h-110"
-                    cmd_thumb = [
-                        FFMPEG, "-y",
-                        "-ss", "15",
-                        "-i", final_path,
-                        "-vframes", "1",
-                        "-vf", vf_thumb,
-                        "-q:v", "2",
-                        thumb_path
+            # Gerar Capas/Thumbnails Cinematográficas Profissionais
+            try:
+                if is_doc:
+                    # Gerar 3 Capas para Teste A/B/C do YouTube (16:9)
+                    TASKS[task_id]["thumbnails"] = []
+                    variacoes_doc = [
+                        ("CAPA_A_EMOCAO", 12, "FUTEBOL INVISIVEL", "DOCUMENTARIO INVESTIGATIVO"),
+                        ("CAPA_B_DISCURSO", 35, "O DISCURSO DO ANO", "A HISTORIA COMPLETA"),
+                        ("CAPA_C_CHOQUE", 55, "A VERDADE DOS BASTIDORES", "FUTEBOL INVISIVEL EXCLUSIVO")
                     ]
-                    subprocess.run(cmd_thumb, capture_output=True)
+                    for prefixo_capa, sec, text_top, text_bot in variacoes_doc:
+                        t_name = f"{prefixo_capa}_{clean_name}_{task_id[:4]}.jpg"
+                        t_path = os.path.join(target_dir, t_name)
+                        vf_thumb = (
+                            f"scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2,"
+                            f"drawbox=y=ih-280:color=black@0.75:width=iw:height=280:t=fill,"
+                            f"drawtext=text='{text_top}':fontcolor=yellow:fontsize=65:x=(w-text_w)/2:y=h-210,"
+                            f"drawtext=text='{text_bot}':fontcolor=white:fontsize=38:x=(w-text_w)/2:y=h-110"
+                        )
+                        cmd_thumb = [FFMPEG, "-y", "-ss", str(sec), "-i", final_path, "-vframes", "1", "-vf", vf_thumb, "-q:v", "2", t_path]
+                        subprocess.run(cmd_thumb, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                        if os.path.exists(t_path):
+                            TASKS[task_id]["thumbnails"].append(t_path)
+                    logger.info(f"3 Capas de Teste A/B Geradas para o Documentário!")
+                else:
+                    # Gerar Capa Vertical para Shorts (9:16)
+                    thumb_filename = f"CAPA_SHORT_{clean_name}_{task_id[:6]}.jpg"
+                    thumb_path = os.path.join(target_dir, thumb_filename)
+                    vf_short_thumb = (
+                        "scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2,"
+                        "drawbox=y=ih-480:color=black@0.75:width=iw:height=400:t=fill,"
+                        "drawtext=text='FUTEBOL INVISIVEL':fontcolor=yellow:fontsize=52:x=(w-text_w)/2:y=h-400,"
+                        "drawtext=text='ASSISTA ATE O FINAL':fontcolor=white:fontsize=36:x=(w-text_w)/2:y=h-260,"
+                        "drawtext=text='INSCREVA-SE':fontcolor=red:fontsize=30:x=(w-text_w)/2:y=h-140"
+                    )
+                    cmd_thumb = [FFMPEG, "-y", "-ss", "5", "-i", final_path, "-vframes", "1", "-vf", vf_short_thumb, "-q:v", "2", thumb_path]
+                    subprocess.run(cmd_thumb, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                     if os.path.exists(thumb_path):
                         TASKS[task_id]["thumb_path"] = thumb_path
                         TASKS[task_id]["thumb_name"] = thumb_filename
-                        logger.info(f"Capa Cinematográfica Gerada: {thumb_path}")
-                except Exception as e_thumb:
-                    logger.warning(f"Não foi possível gerar thumbnail automática: {e_thumb}")
+                        logger.info(f"Capa de Short (9:16) Gerada: {thumb_path}")
+            except Exception as e_thumb:
+                logger.warning(f"Não foi possível gerar thumbnail automática: {e_thumb}")
                 
             logger.success(f"{prefix} CONCLUÍDO: {final_path} | TXT: {txt_path}")
         else:
