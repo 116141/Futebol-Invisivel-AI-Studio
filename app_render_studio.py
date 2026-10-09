@@ -174,6 +174,7 @@ def processar_video(task_id: str, titulo: str, tipo: str, uploaded_image_paths: 
             - Termine de forma dinâmica convidando o espectador a opinar nos comentários e se inscrever no canal Futebol Invisível.
             - Retorne APENAS o texto falado da narração pura, sem marcadores como [Narrador], sem [Cena], sem emojis.
             """
+            try:
                 roteiro_gerado = llm.generate_script(prompt_script)
                 roteiro_limpo = re.sub(r'\[.*?\]', '', roteiro_gerado).strip()
                 roteiro_limpo = roteiro_limpo.replace('**', '').replace('##', '')
