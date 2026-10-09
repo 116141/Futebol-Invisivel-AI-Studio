@@ -170,6 +170,7 @@ def processar_video(task_id: str, titulo: str, tipo: str, uploaded_image_paths: 
             DIRETRIZES ANTI-CONTEÚDO REPETITIVO (CRÍTICO PARA MONETIZAÇÃO DO YOUTUBE):
             - PROIBIDO usar introduções repetitivas como 'A verdade que ninguém fala', 'Nos bastidores...', 'Você não vai acreditar'.
             - Comece nos primeiros 2 segundos com um FATO ESPECÍFICO, uma data, uma cifra milionária, uma frase marcante ou uma ação direta.
+            - INTEGRAÇÃO DE ESTATÍSTICAS REAIS ESTILO FLASHSCORE/SCOUT: Sempre que o tema for um jogador ou time, cite números factuais e métricas reais (número exato de gols na temporada, assistências, participações diretas em gols, média por minuto ou notas médias estilo Flashscore/Sofascore) para gerar credibilidade jornalística irrefutável e engajar debates nos comentários.
             - Desenvolva uma linha narrativa própria conectando eventos reais e o impacto psicológico/financeiro no futebol.
             - Termine de forma dinâmica convidando o espectador a opinar nos comentários e se inscrever no canal Futebol Invisível.
             - Retorne APENAS o texto falado da narração pura, sem marcadores como [Narrador], sem [Cena], sem emojis.
