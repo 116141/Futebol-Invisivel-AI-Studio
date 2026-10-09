@@ -687,13 +687,10 @@ HTML_PAGE = """
             const fotosInput = document.getElementById('fotosInput');
             const postKitBox = document.getElementById('postKitBox');
 
-            btnSubmit.disabled = true;
+            // Feedback visual imediato sem bloquear a criação de novos vídeos paralelos
             progressCard.classList.remove('d-none');
-            downloadBox.classList.add('d-none');
-            postKitBox.classList.add('d-none');
-            roteiroBox.classList.add('d-none');
             spinner.classList.remove('d-none');
-            statusText.innerText = "Criando tarefa no servidor...";
+            statusText.innerText = `Enviando "${titulo}" para a fila de produção...`;
 
             const formData = new FormData();
             formData.append('titulo', titulo);
