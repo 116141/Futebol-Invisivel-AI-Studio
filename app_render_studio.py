@@ -29,7 +29,7 @@ app = FastAPI(title="Futebol Invisível & Alana Cruz AI Studio")
 
 TASKS = {}
 
-def processar_video(task_id: str, titulo: str, tipo: str, uploaded_image_paths: list = None, promo_raw: str = ""):
+def processar_video(task_id: str, titulo: str, tipo: str, uploaded_image_paths: list = None, promo_raw: str = "", gancho_escolhido: str = ""):
     try:
         is_doc = (tipo == "doc")
         is_afiliado = (tipo == "afiliado_moda")
@@ -160,31 +160,39 @@ def processar_video(task_id: str, titulo: str, tipo: str, uploaded_image_paths: 
             pegada_escolhida = random.choice(pegadas_futebol)
             logger.info(f"Pegada do Roteiro de Futebol Selecionada: {pegada_escolhida['nome']}")
             
-            prompt_script = f"""
-            Você é o roteirista investigativo do canal @FutebolInvisivelOficial no YouTube.
-            Crie um roteiro ORIGINAL, INÉDITO e HIPNOTIZANTE em português (pt-BR) para {tempo_desc} sobre o tema: '{titulo}'.
-            
-            PEGADA OBRIGATÓRIA DESTE VÍDEO ({pegada_escolhida['nome']}):
-            {pegada_escolhida['diretriz']}
-            
-            DIRETRIZES ANTI-CONTEÚDO REPETITIVO (CRÍTICO PARA MONETIZAÇÃO DO YOUTUBE):
-            - PROIBIDO usar introduções repetitivas como 'A verdade que ninguém fala', 'Nos bastidores...', 'Você não vai acreditar'.
-            - Comece nos primeiros 2 segundos com um FATO ESPECÍFICO, uma data, uma cifra milionária, uma frase marcante ou uma ação direta.
-            - INTEGRAÇÃO DE ESTATÍSTICAS REAIS ESTILO FLASHSCORE/SCOUT: Sempre que o tema for um jogador ou time, cite números factuais e métricas reais (número exato de gols na temporada, assistências, participações diretas em gols, média por minuto ou notas médias estilo Flashscore/Sofascore) para gerar credibilidade jornalística irrefutável e engajar debates nos comentários.
-            - Desenvolva uma linha narrativa própria conectando eventos reais e o impacto psicológico/financeiro no futebol.
-            - Termine de forma dinâmica convidando o espectador a opinar nos comentários e se inscrever no canal Futebol Invisível.
-            - Retorne APENAS o texto falado da narração pura, sem marcadores como [Narrador], sem [Cena], sem emojis.
-            """
-            try:
-                roteiro_gerado = llm.generate_script(prompt_script)
-                roteiro_limpo = re.sub(r'\[.*?\]', '', roteiro_gerado).strip()
-                roteiro_limpo = roteiro_limpo.replace('**', '').replace('##', '')
-                if len(roteiro_limpo) > 60 and "Error:" not in roteiro_limpo and "503" not in roteiro_limpo:
-                    roteiro = roteiro_limpo
-                else:
-                    raise ValueError("Erro de resposta da IA")
-            except Exception:
-                roteiro = pegada_escolhida["fallback_doc"] if is_doc else pegada_escolhida["fallback_short"]
+            if gancho_escolhido and not is_doc:
+                TASKS[task_id]["status"] = "Gerando Roteiro de 30-33s com Gancho Selecionado..."
+                roteiro = llm.generate_script_with_hook(
+                    video_subject=titulo,
+                    gancho_escolhido=gancho_escolhido,
+                    target_duration_seconds=32
+                )
+            else:
+                prompt_script = f"""
+                Você é o roteirista investigativo do canal @FutebolInvisivelOficial no YouTube.
+                Crie um roteiro ORIGINAL, INÉDITO e HIPNOTIZANTE em português (pt-BR) para {tempo_desc} sobre o tema: '{titulo}'.
+                
+                PEGADA OBRIGATÓRIA DESTE VÍDEO ({pegada_escolhida['nome']}):
+                {pegada_escolhida['diretriz']}
+                
+                DIRETRIZES DE JORNALISMO EM TEMPO REAL E INFORMAÇÕES ATUALIZADAS (30 A 33 SEGUNDOS PARA SHORTS):
+                - O roteiro de Short deve ter entre 65 e 80 palavras no total para preencher com precisão 30 a 33 segundos de locução.
+                - PROIBIDO usar introduções repetitivas como 'A verdade que ninguém fala', 'Nos bastidores...', 'Você não vai acreditar'.
+                - Comece nos primeiros 2 segundos com um FATO ESPECÍFICO, uma data, uma cifra milionária, uma frase marcante ou uma ação direta.
+                - INFORMAÇÕES 100% ATUALIZADAS EM TEMPO REAL: Consulte a realidade factual exata do momento da partida/notícia.
+                - Termine de forma dinâmica convidando o espectador a opinar nos comentários sem despedidas longas.
+                - Retorne APENAS o texto falado da narração pura, sem marcadores como [Narrador], sem [Cena], sem emojis.
+                """
+                try:
+                    roteiro_gerado = llm.generate_script(prompt_script)
+                    roteiro_limpo = re.sub(r'\[.*?\]', '', roteiro_gerado).strip()
+                    roteiro_limpo = roteiro_limpo.replace('**', '').replace('##', '')
+                    if len(roteiro_limpo) > 60 and "Error:" not in roteiro_limpo and "503" not in roteiro_limpo:
+                        roteiro = roteiro_limpo
+                    else:
+                        raise ValueError("Erro de resposta da IA")
+                except Exception:
+                    roteiro = pegada_escolhida["fallback_doc"] if is_doc else pegada_escolhida["fallback_short"]
             
         TASKS[task_id]["roteiro"] = roteiro
         TASKS[task_id]["status"] = "Gerando Narração e Sincronia de Legendas..."
@@ -404,9 +412,15 @@ def processar_video(task_id: str, titulo: str, tipo: str, uploaded_image_paths: 
                 post_coment = f"🛍️ Link oficial com desconto promocional:\n👉 {link_display} 💕"
             else:
                 post_titulo = f"{titulo[:70]} | Futebol Invisível #Shorts"
+                tags_virais = (
+                    "CazéTV, CazéTV futebol, TNT Sports Brasil, GE Globo Esporte, Desimpedidos, Peleja, Eurofut, "
+                    "Fabrizio Romano, Real Madrid, Barcelona, Champions League, La Liga, Premier League, "
+                    "mercado da bola, melhores momentos, gols da rodada, Futebol Invisível, Shorts, futebol"
+                )
                 post_desc = (
-                    f"A investigação completa dos bastidores sobre {titulo}! Inscreva-se no canal Futebol Invisível.\n\n"
-                    f"#futebol #futebolinvisivel #shorts #polemica #bastidores"
+                    f"A investigação completa dos bastidores sobre {titulo}! Inscreva-se no canal @FutebolInvisivelOficial.\n\n"
+                    f"Acompanhe as análises estilo CazéTV e TNT Sports Brasil com scouts do Flashscore e a verdade dos bastidores.\n\n"
+                    f"#futebol #cazetv #tntsports #futebolinvisivel #shorts #polemica #bastidores #laliga #championsleague"
                 )
                 post_coment = "Deixe sua opinião nos comentários e se inscreva no canal Futebol Invisível!"
                 
@@ -423,6 +437,7 @@ def processar_video(task_id: str, titulo: str, tipo: str, uploaded_image_paths: 
                 f_txt.write("====================================================\n\n")
                 f_txt.write(f"📌 TÍTULO DO VÍDEO:\n{post_titulo}\n\n")
                 f_txt.write(f"📝 DESCRIÇÃO COM HASHTAGS:\n{post_desc}\n\n")
+                f_txt.write(f"🏷️ TAGS SEO (PUXANDO AUDIÊNCIA DOS GIGANTES):\n{tags_virais if not is_afiliado else 'moda feminina, vestidos, achadinhos, aliexpress, shopee'}\n\n")
                 f_txt.write(f"💬 1º COMENTÁRIO FIXADO (LINK DIRETO):\n{post_coment}\n\n")
                 if link_afiliado:
                     f_txt.write(f"🔗 LINK DE AFILIADO PURO:\n{link_afiliado}\n\n")
@@ -563,7 +578,22 @@ HTML_PAGE = """
                     <small class="text-secondary">Se você anexar as fotos, elas serão animadas em Full HD com efeito Ken Burns e mescladas com os vídeos de pessoas reais em movimento.</small>
                 </div>
 
-                <button type="submit" class="btn btn-gold btn-lg w-100" id="btnSubmit">⚡ GERAR VÍDEO COMPLETO AGORA</button>
+                <!-- SELETOR DE 3 GANCHOS VIRAL (CALIBRAÇÃO DE RETENÇÃO) -->
+                <div id="ganchosContainer" class="d-none mb-4 p-3 bg-dark rounded border border-warning">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <h5 class="text-warning fw-bold mb-0">🎯 Escolha o Gancho de Abertura (0 a 3 segundos):</h5>
+                        <span class="badge bg-warning text-dark">Calibrador de Retenção</span>
+                    </div>
+                    <p class="text-secondary small mb-3">Selecione a abertura mais impactante para reter mais de 70% do público no primeiro segundo:</p>
+                    <div id="listaGanchos" class="d-flex flex-column gap-2 mb-3"></div>
+                    <input type="hidden" id="ganchoEscolhidoInput" value="">
+                    <button type="button" class="btn btn-outline-secondary btn-sm" onclick="cancelarGanchos()">↺ Digitar outro tema</button>
+                </div>
+
+                <div class="d-flex gap-2">
+                    <button type="button" class="btn btn-outline-warning btn-lg flex-grow-1" id="btnGerarGanchos" onclick="buscarGanchos()">🎯 ANALISAR & GERAR 3 GANCHOS</button>
+                    <button type="submit" class="btn btn-gold btn-lg flex-grow-1" id="btnSubmit">⚡ GERAR VÍDEO COMPLETO DIRETO</button>
+                </div>
             </form>
         </div>
 
@@ -628,7 +658,68 @@ HTML_PAGE = """
         const downloadBox = document.getElementById('downloadBox');
         const btnDownload = document.getElementById('btnDownload');
         const btnSubmit = document.getElementById('btnSubmit');
+        const btnGerarGanchos = document.getElementById('btnGerarGanchos');
         const listaTarefas = document.getElementById('listaTarefas');
+        const ganchosContainer = document.getElementById('ganchosContainer');
+        const listaGanchos = document.getElementById('listaGanchos');
+        const ganchoEscolhidoInput = document.getElementById('ganchoEscolhidoInput');
+
+        async function buscarGanchos() {
+            const titulo = document.getElementById('tituloInput').value.trim();
+            if (!titulo) {
+                alert("Por favor, digite o tema ou título antes de gerar os ganchos!");
+                return;
+            }
+            btnGerarGanchos.disabled = true;
+            btnGerarGanchos.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Criando 3 Ganchos...';
+            try {
+                const formData = new FormData();
+                formData.append('titulo', titulo);
+                const res = await fetch('/api/ganchos', { method: 'POST', body: formData });
+                const data = await res.json();
+                if (data.ganchos && data.ganchos.length > 0) {
+                    let html = '';
+                    data.ganchos.forEach((g, idx) => {
+                        html += `
+                            <div class="card bg-black border-secondary p-3 text-light" style="cursor: pointer; transition: 0.2s;" 
+                                 onclick="selecionarGancho('${g.texto.replace(/'/g, "\\'")}', this)">
+                                <div class="d-flex justify-content-between align-items-center mb-1">
+                                    <span class="badge bg-warning text-dark fw-bold">${g.tipo}</span>
+                                    <small class="text-secondary">Opção ${idx + 1}</small>
+                                </div>
+                                <div class="fs-6 fw-bold">"${g.texto}"</div>
+                            </div>
+                        `;
+                    });
+                    listaGanchos.innerHTML = html;
+                    ganchosContainer.classList.remove('d-none');
+                }
+            } catch (err) {
+                alert("Não foi possível gerar os ganchos automáticos. Você pode gerar o vídeo direto!");
+            } finally {
+                btnGerarGanchos.disabled = false;
+                btnGerarGanchos.innerHTML = '🎯 ANALISAR & GERAR 3 GANCHOS';
+            }
+        }
+
+        function selecionarGancho(texto, el) {
+            ganchoEscolhidoInput.value = texto;
+            document.querySelectorAll('#listaGanchos .card').forEach(c => {
+                c.classList.remove('border-warning');
+                c.classList.add('border-secondary');
+            });
+            el.classList.remove('border-secondary');
+            el.classList.add('border-warning');
+            btnSubmit.innerHTML = '⚡ GERAR VÍDEO COM GANCHO ESCOLHIDO';
+            btnSubmit.classList.add('glow');
+        }
+
+        function cancelarGanchos() {
+            ganchosContainer.classList.add('d-none');
+            ganchoEscolhidoInput.value = '';
+            btnSubmit.innerHTML = '⚡ GERAR VÍDEO COMPLETO DIRETO';
+            btnSubmit.classList.remove('glow');
+        }
 
         async function carregarTarefas() {
             try {
@@ -685,9 +776,9 @@ HTML_PAGE = """
             const tipo = document.querySelector('input[name="tipoVideo"]:checked').value;
             const promo = document.getElementById('promoInput') ? document.getElementById('promoInput').value : '';
             const fotosInput = document.getElementById('fotosInput');
+            const ganchoEscolhido = ganchoEscolhidoInput.value;
             const postKitBox = document.getElementById('postKitBox');
 
-            // Feedback visual imediato sem bloquear a criação de novos vídeos paralelos
             progressCard.classList.remove('d-none');
             spinner.classList.remove('d-none');
             statusText.innerText = `Enviando "${titulo}" para a fila de produção...`;
@@ -696,6 +787,7 @@ HTML_PAGE = """
             formData.append('titulo', titulo);
             formData.append('tipo', tipo);
             formData.append('promo', promo);
+            formData.append('gancho_escolhido', ganchoEscolhido);
             if (fotosInput.files) {
                 for (let i = 0; i < fotosInput.files.length; i++) {
                     formData.append('fotos', fotosInput.files[i]);
@@ -759,12 +851,20 @@ def index():
 def listar_tarefas():
     return TASKS
 
+@app.post("/api/ganchos")
+def obter_ganchos(titulo: str = Form("")):
+    if not titulo or len(titulo.strip()) < 3:
+        raise HTTPException(status_code=400, detail="Título muito curto para análise.")
+    ganchos = llm.generate_hooks(titulo.strip())
+    return {"ganchos": ganchos}
+
 @app.post("/api/criar")
 async def criar_video(
     background_tasks: BackgroundTasks,
     titulo: str = Form(""),
     tipo: str = Form("short"),
     promo: str = Form(""),
+    gancho_escolhido: str = Form(""),
     fotos: Optional[List[UploadFile]] = File(None)
 ):
     task_id = str(uuid.uuid4())
@@ -793,7 +893,7 @@ async def criar_video(
         "post_descricao": "",
         "post_comentario": ""
     }
-    background_tasks.add_task(processar_video, task_id, titulo, tipo, uploaded_image_paths, promo)
+    background_tasks.add_task(processar_video, task_id, titulo, tipo, uploaded_image_paths, promo, gancho_escolhido)
     return {"task_id": task_id}
 
 @app.get("/api/status/{task_id}")

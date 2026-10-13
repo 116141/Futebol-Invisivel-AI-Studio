@@ -45,7 +45,16 @@ htmlcov/
 # Videos e arquivos pesados
 *.mp4
 *.mp3
+*.aac
+*.wav
 temp_*
 Videos_Prontos_Alana/
 canais/**/videos_prontos/
 canais/**/materiais_fotos_videos/
+
+# Builds e temporários
+build/
+dist/
+*.exe
+*.spec
+"EXpress anuncio/"

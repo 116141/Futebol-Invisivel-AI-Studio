@@ -835,6 +835,82 @@ def azure_tts_v1(
                         "failed to remove empty tts file: "
                         f"{voice_file}, error: {str(remove_error)}"
                     )
+                    
+    # Fallback automático: Google TTS gratuito (nunca deixa o vídeo falhar)
+    try:
+        logger.warning(f"Edge-TTS indisponível no momento. Ativando fallback de alta confiabilidade...")
+        import urllib.request
+        from urllib.parse import quote
+        import math
+        
+        # Divide texto em blocos de até 180 caracteres para a API do Google
+        words = text.split()
+        chunks = []
+        cur = []
+        for w in words:
+            if len(" ".join(cur + [w])) < 160:
+                cur.append(w)
+            else:
+                chunks.append(" ".join(cur))
+                cur = [w]
+        if cur:
+            chunks.append(" ".join(cur))
+            
+        temp_audio_parts = []
+        for idx, chunk_text in enumerate(chunks):
+            p_file = f"{voice_file}_part_{idx}.mp3"
+            q_url = f"https://translate.google.com/translate_tts?ie=UTF-8&tl=pt-BR&client=tw-ob&q={quote(chunk_text)}"
+            req = urllib.request.Request(q_url, headers={"User-Agent": "Mozilla/5.0"})
+            with urllib.request.urlopen(req) as resp, open(p_file, "wb") as f_part:
+                f_part.write(resp.read())
+            temp_audio_parts.append(p_file)
+            
+        # Concatena partes com ffmpeg
+        txt_list = f"{voice_file}_concat.txt"
+        with open(txt_list, "w", encoding="utf-8") as f_txt:
+            for p in temp_audio_parts:
+                f_txt.write(f"file '{os.path.abspath(p).replace('\\', '/')}'\n")
+        import imageio_ffmpeg
+        ffmpeg_bin = imageio_ffmpeg.get_ffmpeg_exe()
+        subprocess.run([ffmpeg_bin, "-y", "-f", "concat", "-safe", "0", "-i", txt_list, "-c", "copy", voice_file], capture_output=True)
+        
+        # Limpa temporários
+        for p in temp_audio_parts:
+            if os.path.exists(p): os.remove(p)
+        if os.path.exists(txt_list): os.remove(txt_list)
+        
+        if os.path.exists(voice_file) and os.path.getsize(voice_file) > 1000:
+            logger.success(f"Voz gerada com sucesso via motor de contingência: {voice_file}")
+            
+            # Gera SubMaker proporcional para manter as legendas
+            class SimpleSubMaker:
+                def __init__(self, full_text):
+                    self.full_text = full_text
+                def get_srt(self):
+                    # Gera blocos simples de legendas a cada 4 palavras
+                    palavras = self.full_text.split()
+                    srt_out = []
+                    bloco_idx = 1
+                    ms_por_palavra = 360 # ~160 palavras por minuto
+                    for i in range(0, len(palavras), 5):
+                        bloco = " ".join(palavras[i:i+5])
+                        start_ms = i * ms_por_palavra
+                        end_ms = (i + 5) * ms_por_palavra
+                        
+                        def to_srt_time(ms):
+                            s = ms // 1000
+                            m = s // 60
+                            h = m // 60
+                            return f"{h:02d}:{m%60:02d}:{s%60:02d},{ms%1000:03d}"
+                            
+                        srt_out.append(f"{bloco_idx}\n{to_srt_time(start_ms)} --> {to_srt_time(end_ms)}\n{bloco}\n")
+                        bloco_idx += 1
+                    return "\n".join(srt_out)
+                    
+            return SimpleSubMaker(text)
+    except Exception as e_fb:
+        logger.error(f"Erro no fallback de voz: {e_fb}")
+
     return None
 
 

@@ -964,6 +964,136 @@ def generate_social_metadata(
     return _fallback_social_metadata(video_subject, video_script, platform)
 
 
+def generate_hooks(video_subject: str, app_config=None) -> list:
+    """
+    Gera 3 variações de ganchos estruturadas (0 a 3s) para YouTube Shorts.
+    Valida rigorosamente os dados e evita estatísticas inventadas.
+    """
+    prompt = f"""
+    Você é um roteirista sênior do canal @FutebolInvisivelOficial no YouTube.
+    Para o tema '{video_subject}', crie exatamente 3 opções de ganchos iniciais (de 10 a 16 palavras, feitos para prender o espectador nos primeiros 2 a 3 segundos).
+
+    DIRETRIZES DE VERACIDADE E RETENÇÃO:
+    - O gancho numérico DEVE utilizar fatos ou scouts reais e verificáveis. Se não houver número exato confirmado, use um fato histórico real sem inventar números.
+    - PROIBIDO introduções genéricas como 'Você sabia', 'Neste vídeo', 'Hoje vamos falar'.
+    - Seja direto, impactante e cinematográfico.
+
+    Retorne ESTRITAMENTE um JSON no formato:
+    [
+        {{
+            "id": "afirmacao",
+            "tipo": "Afirmação de Choque",
+            "texto": "Frase contundente que rompe a expectativa no primeiro segundo."
+        }},
+        {{
+            "id": "pergunta",
+            "tipo": "Pergunta Provocadora",
+            "texto": "Pergunta instigante que ativa curiosidade factual imediata."
+        }},
+        {{
+            "id": "facto",
+            "tipo": "Fato ou Número Real",
+            "texto": "Dado real, minuto exato ou fato irrefutável."
+        }}
+    ]
+    """
+    for i in range(_max_retries):
+        try:
+            if app_config is None:
+                resp = _generate_response(prompt=prompt)
+            else:
+                resp = _generate_response(prompt=prompt, app_config=app_config)
+            
+            clean_resp = _strip_code_fence(resp)
+            match = re.search(r"\[\s*\{.*\}\s*\]", clean_resp, re.DOTALL)
+            if match:
+                clean_resp = match.group(0)
+            
+            data = json.loads(clean_resp)
+            if isinstance(data, list) and len(data) == 3:
+                valido = True
+                for item in data:
+                    if not isinstance(item, dict) or "id" not in item or "texto" not in item:
+                        valido = False
+                        break
+                if valido:
+                    return data
+        except Exception as e:
+            logger.warning(f"Tentativa {i+1} de gerar ganchos falhou: {e}")
+            
+    # Fallback transparente sem números fictícios
+    return [
+        {
+            "id": "afirmacao",
+            "tipo": "Afirmação de Choque",
+            "texto": f"A verdade sobre {video_subject} dividiu os bastidores do futebol."
+        },
+        {
+            "id": "pergunta",
+            "tipo": "Pergunta Provocadora",
+            "texto": f"O que realmente aconteceu com {video_subject} quando as câmeras desligaram?"
+        },
+        {
+            "id": "facto",
+            "tipo": "Fato Marcante",
+            "texto": f"A decisão envolvendo {video_subject} mudou o rumo da temporada."
+        }
+    ]
+
+
+def generate_script_with_hook(
+    video_subject: str,
+    gancho_escolhido: str,
+    target_duration_seconds: int = 32,
+    app_config=None
+) -> str:
+    """
+    Gera um roteiro cronometrado para 30-33 segundos (aprox. 70 a 80 palavras em ritmo normal de TTS),
+    abrindo obrigatoriamente com o gancho escolhido.
+    """
+    prompt = f"""
+    Você é o roteirista investigativo do canal @FutebolInvisivelOficial.
+    Tema: '{video_subject}'
+    
+    GANCHO INICIAL OBRIGATÓRIO (Primeiros 2 a 3 segundos):
+    "{gancho_escolhido}"
+    
+    DIRETRIZES RÍGIDAS DE DURAÇÃO E ESTRUTURA (30 A 33 SEGUNDOS):
+    - O texto completo DEVE ter entre 65 e 80 palavras no total (ritmo perfeito para locução de ~31 segundos no Edge TTS).
+    - Comece EXATAMENTE dizendo a frase do gancho escolhido.
+    - Em seguida (segundos 3 a 20), explique a tensão e a consequência direta com dados e ritmo acelerado.
+    - No final (segundos 25 a 30), termine com um desfecho forte ou pergunta provocadora para engajar comentários.
+    - PROIBIDO despedidas longas como 'obrigado por assistir, deixe o like e se inscreva'.
+    - Não invente informações fictícias.
+    - Retorne APENAS o texto puro a ser falado pelo locutor, sem marcadores de cena e sem emojis.
+    """
+    for i in range(_max_retries):
+        try:
+            if app_config is None:
+                resp = _generate_response(prompt=prompt)
+            else:
+                resp = _generate_response(prompt=prompt, app_config=app_config)
+            
+            if not resp or resp.startswith("Error:"):
+                logger.warning(f"Resposta inválida ou erro do provedor de LLM: {resp[:100] if resp else 'vazio'}")
+                continue
+                
+            clean = re.sub(r"\[.*?\]", "", resp).strip()
+            clean = clean.replace("*", "").replace("#", "")
+            
+            # Garantir que o texto comece com o gancho
+            if not clean.lower().startswith(gancho_escolhido.lower()[:15]):
+                clean = f"{gancho_escolhido} {clean}"
+                
+            palavras = clean.split()
+            if len(palavras) >= 40:
+                return clean
+        except Exception as e:
+            logger.warning(f"Tentativa {i+1} de gerar roteiro com gancho falhou: {e}")
+            
+    return f"{gancho_escolhido} O impacto nos bastidores colocou todos em alerta máximo. Cada decisão tomada agora pode mudar tudo. Qual é a sua opinião sobre isso? Comente abaixo."
+
+
 if __name__ == "__main__":
     video_subject = "生命的意义是什么"
     script = generate_script(
