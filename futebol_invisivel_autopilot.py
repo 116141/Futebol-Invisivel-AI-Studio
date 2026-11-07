@@ -6,10 +6,11 @@ import time
 import requests
 import subprocess
 import imageio_ffmpeg
-from ddgs import DDGS
-from PIL import Image
+from duckduckgo_search import DDGS
+from PIL import Image, ImageDraw
 from loguru import logger
 from google import genai
+from hyperframes_engine import produce_hyperframes_video
 
 GEMINI_API_KEY = "AIzaSyCyPvygTtJiC7E4g9BdFnWkgECUGLNm5ak"
 GEMINI_MODELS = [
@@ -115,35 +116,49 @@ def download_and_crop_image(url, out_path):
         pass
     return False
 
+from coletor_fotos_reais import collect_editorial_materials
+
 def collect_real_materials(queries, task_id):
     mat_dir = os.path.join("canais", "canal_01_futebol_invisivel", "materiais_fotos_videos", task_id)
     os.makedirs(mat_dir, exist_ok=True)
+    
+    # 1. CAMADA PRIMÁRIA OFICIAL: Acervo Editorial Wikimedia Commons (alta precisão, sem rate limit)
+    logger.info(f"[DNA EDITORIAL] Buscando fotos autênticas oficiais para {len(queries)} cenas...")
+    saved_images = collect_editorial_materials(queries, mat_dir)
+    if len(saved_images) >= max(3, len(queries) // 2):
+        logger.success(f"[DNA EDITORIAL] Coletadas {len(saved_images)} fotos reais de alta precisão via acervo oficial.")
+        return saved_images
+
+    # 2. CAMADA SECUNDÁRIA: Busca complementar com DuckDuckGo
+    logger.warning("[DNA EDITORIAL] Ativando busca complementar para completar cenas faltantes...")
     ddgs = DDGS()
-    saved_images = []
+    bancos_proibidos = ["alamy", "gettyimages", "shutterstock", "istockphoto", "adobestock", "dreamstime", "123rf"]
     
     for i, q in enumerate(queries):
         out_file = os.path.join(mat_dir, f"cena_{i+1:02d}.jpg")
-        logger.info(f"Buscando foto real para Cena {i+1}: '{q}'...")
+        if os.path.exists(out_file) and os.path.getsize(out_file) > 10000:
+            if out_file not in saved_images:
+                saved_images.append(out_file)
+            continue
+            
+        logger.info(f"Buscando foto complementar para Cena {i+1}: '{q}'...")
         try:
-            results = list(ddgs.images(q, max_results=8))
+            results = list(ddgs.images(q, max_results=6))
         except Exception:
-            time.sleep(1)
-            try:
-                results = list(ddgs.images(q, max_results=5))
-            except Exception:
-                results = []
-                
-        success = False
+            results = []
+            
         for r in results:
             img_url = r.get("image")
             if not img_url:
                 continue
+            url_lower = img_url.lower()
+            if any(banco in url_lower for banco in bancos_proibidos):
+                continue
             if download_and_crop_image(img_url, out_file):
                 logger.success(f"Foto real 9:16 salva: {out_file}")
                 saved_images.append(out_file)
-                success = True
                 break
-        time.sleep(1)
+        time.sleep(0.5)
         
     return saved_images
 
@@ -174,7 +189,7 @@ def animate_real_clips(images, task_id):
             
     return generated_clips
 
-def produce_video(title: str):
+def produce_video(title: str, engine: str = "hyperframes"):
     task_id = str(int(time.time()))
     data = generate_script_and_queries(title)
     
@@ -187,12 +202,29 @@ def produce_video(title: str):
     if not images:
         raise RuntimeError("Não foi possível baixar fotos reais para o tema.")
         
-    clips = animate_real_clips(images, task_id)
-    materials_arg = ",".join(clips)
-    
-    output_target_name = f"{task_id}_{title.replace(' ', '_')[:30]}.mp4"
+    safe_title = "".join(c for c in title if c.isalnum() or c in (" ", "_", "-")).rstrip()[:30]
+    output_target_name = f"{task_id}_{safe_title.replace(' ', '_')}.mp4"
     output_dir = os.path.join("canais", "canal_01_futebol_invisivel", "videos_prontos")
     os.makedirs(output_dir, exist_ok=True)
+    final_dest = os.path.abspath(os.path.join(output_dir, output_target_name))
+
+    if engine == "hyperframes":
+        logger.info("[ENGINE HYPERFRAMES] Compilando vídeo de altíssima qualidade via HyperFrames (HTML/CSS/GSAP)...")
+        res_video = produce_hyperframes_video(
+            title=data['subject'],
+            script=data['script'],
+            image_paths=images,
+            voice_name="pt-BR-AntonioNeural",
+            task_id=task_id,
+            output_mp4=final_dest
+        )
+        logger.success(f"VÍDEO FINAL ENTREGUE EM: {res_video}")
+        return res_video
+
+    # Engine Classic (MoneyPrinterTurbo + FFmpeg tradicional)
+    logger.info("[ENGINE CLASSIC] Usando renderizador tradicional via FFmpeg/cli.py...")
+    clips = animate_real_clips(images, task_id)
+    materials_arg = ",".join(clips)
     
     cmd = [
         sys.executable,
@@ -214,12 +246,48 @@ def produce_video(title: str):
     logger.info("Renderizando vídeo final com voz jornalística e legendas dinâmicas...")
     res = subprocess.run(cmd, capture_output=True, text=True)
     
+    # APLICAÇÃO OBRIGATÓRIA DA MARCA D'ÁGUA CIRCULAR DO CANAL
+    watermark_script = "aplicar_marca_dagua.py"
+    logo_src = "perfil_futebol_invisivel.jpg"
+    
+    def aplicar_marca_dagua_final(video_path):
+        if not os.path.exists(logo_src) or not os.path.exists(video_path):
+            return
+        temp_wm_vid = video_path.replace(".mp4", "_wm_temp.mp4")
+        temp_wm_png = "temp_wm_canal.png"
+        try:
+            with Image.open(logo_src) as img_logo:
+                img_logo = img_logo.convert("RGBA")
+                wm_size = (110, 110)
+                img_logo = img_logo.resize(wm_size, Image.LANCZOS)
+                mask = Image.new("L", wm_size, 0)
+                draw = ImageDraw.Draw(mask)
+                draw.ellipse((0, 0, wm_size[0], wm_size[1]), fill=210)
+                img_logo.putalpha(mask)
+                img_logo.save(temp_wm_png, "PNG")
+            
+            ffmpeg_cmd = [
+                "ffmpeg", "-y", "-i", video_path, "-i", temp_wm_png,
+                "-filter_complex", "[1:v]format=rgba,colorchannelmixer=aa=0.85[wm];[0:v][wm]overlay=W-w-35:35",
+                "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-c:a", "copy",
+                temp_wm_vid
+            ]
+            p = subprocess.run(ffmpeg_cmd, capture_output=True)
+            if p.returncode == 0 and os.path.exists(temp_wm_vid):
+                os.replace(temp_wm_vid, video_path)
+                logger.success(f"Marca d'água oficial aplicada no vídeo final: {video_path}")
+            if os.path.exists(temp_wm_png):
+                os.remove(temp_wm_png)
+        except Exception as e_wm:
+            logger.warning(f"Erro ao aplicar marca d'água: {e_wm}")
+
     # Mover vídeo para a pasta do canal
     for line in res.stdout.split("\n"):
         if "final-1.mp4" in line and os.path.exists(line.strip()):
             dest = os.path.join(output_dir, output_target_name)
             import shutil
             shutil.copy(line.strip(), dest)
+            aplicar_marca_dagua_final(dest)
             logger.success(f"VÍDEO FINAL ENTREGUE EM: {dest}")
             return dest
             
@@ -229,9 +297,11 @@ def produce_video(title: str):
         dest = os.path.join(output_dir, output_target_name)
         import shutil
         shutil.copy(tasks[0], dest)
+        aplicar_marca_dagua_final(dest)
         logger.success(f"VÍDEO FINAL ENTREGUE EM: {dest}")
         return dest
 
 if __name__ == '__main__':
     video_title = sys.argv[1] if len(sys.argv) > 1 else "Cristiano Ronaldo Abandonou a Seleção? A Verdade da Treta com Jorge Jesus"
-    produce_video(video_title)
+    engine_choice = sys.argv[2] if len(sys.argv) > 2 else "hyperframes"
+    produce_video(video_title, engine=engine_choice)

@@ -3,7 +3,9 @@
 /config.toml.bak
 /storage/
 /.idea/
-/app/services/__pycache__
+/app/services/tests/__pycache__/
+tests/**/__pycache__/
+*.pyc
 /app/__pycache__/
 /app/config/__pycache__/
 /app/models/__pycache__/
@@ -35,6 +37,8 @@ debug_*.py
 test_*.py
 !test/services/test_*.py
 !test/test_*.py
+!tests/
+!tests/**
 streamlit.log
 .coverage
 coverage.xml
@@ -58,3 +62,31 @@ dist/
 *.exe
 *.spec
 "EXpress anuncio/"
+
+# Segredos, credenciais e arquivos de ambiente locais
+.env
+.env.*
+!.env.example
+client_secrets*.json
+*.token.json
+token.json
+database.sqlite
+*.log
+
+
+# Bancos de dados locais SQLite
+/data/*.db
+/data/*.sqlite3
+data/*.db
+data/*.sqlite3
+
+# Arquivos temporários de vídeo e legendas soltas
+*.part
+*.ass
+*.srt
+
+# Relatórios automáticos e verificações factuais locais
+aprovacao_humana_*.json
+verificacao_factual_*.json
+aprovacoes_pendentes/
+

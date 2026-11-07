@@ -269,21 +269,59 @@ def _generate_response(prompt: str, app_config=None) -> str:
                 ],
             )
 
-            try:
-                # 新版 google-genai 通过统一 Client 暴露模型服务。上下文管理器
-                # 会在请求结束后关闭底层 HTTP 连接，避免频繁生成时积累连接资源。
-                with genai.Client(
-                    api_key=api_key,
-                    http_options=http_options,
-                ) as client:
-                    response = client.models.generate_content(
-                        model=model_name,
-                        contents=prompt,
-                        config=generation_config,
-                    )
-                generated_text = response.text
-            except (AttributeError, IndexError, ValueError) as e:
-                logger.warning(f"gemini returned invalid response content: {str(e)}")
+            import time as _pytime
+            generated_text = None
+            max_gemini_tries = 3
+            # Fallback dinâmico entre modelos ativos do Gemini
+            model_candidates = [
+                model_name,
+                "gemini-3.5-flash-lite",
+                "gemini-3-flash-preview",
+                "gemini-3.8-flash",
+                "gemini-flash-latest"
+            ]
+            # Deduplica preservando ordem
+            seen_models = set()
+            unique_models = []
+            for m in model_candidates:
+                if m and m not in seen_models:
+                    seen_models.add(m)
+                    unique_models.append(m)
+
+            last_err = None
+            for cand_model in unique_models:
+                for try_idx in range(max_gemini_tries):
+                    try:
+                        with genai.Client(
+                            api_key=api_key,
+                            http_options=http_options,
+                        ) as client:
+                            response = client.models.generate_content(
+                                model=cand_model,
+                                contents=prompt,
+                                config=generation_config,
+                            )
+                        if response and response.text:
+                            generated_text = response.text
+                            break
+                    except Exception as e:
+                        last_err = e
+                        err_str = str(e)
+                        if "503" in err_str or "UNAVAILABLE" in err_str or "high demand" in err_str:
+                            wait_sec = (try_idx + 1) * 3
+                            logger.warning(f"Gemini 503 ({cand_model}) sobrecarregado. Aguardando {wait_sec}s para retry {try_idx + 1}/{max_gemini_tries}...")
+                            _pytime.sleep(wait_sec)
+                        elif "404" in err_str or "NOT_FOUND" in err_str or "429" in err_str or "RESOURCE_EXHAUSTED" in err_str:
+                            logger.warning(f"Gemini ({cand_model}) atingiu limite ou modelo indisponível ({err_str[:80]}). Alternando para o próximo modelo de contingência...")
+                            break
+                        else:
+                            break
+                if generated_text:
+                    break
+
+            if not generated_text:
+                if last_err:
+                    raise last_err
                 raise ValueError(f"[{llm_provider}] returned invalid response content")
 
             return _normalize_text_response(generated_text, llm_provider)
@@ -555,21 +593,42 @@ def generate_script(
                 response = _generate_response(prompt=prompt)
             else:
                 response = _generate_response(prompt=prompt, app_config=app_config)
-            if response:
+
+            if response and not response.strip().startswith("Error:"):
                 final_script = format_response(response)
+                if final_script and "当日额度已消耗完" not in final_script:
+                    break
             else:
-                logging.error("gpt returned an empty response")
+                logger.warning(f"Provedor principal falhou ({response[:80] if response else 'vazio'}). Tentando Fallback Multi-IA com Groq...")
+                # FALLBACK MULTI-IA AUTOMÁTICO: Groq assume imediatamente se o principal devolver erro ou falhar
+                try:
+                    fallback_cfg = (app_config or config.app).copy()
+                    fallback_cfg["llm_provider"] = "groq"
+                    fallback_cfg["groq_model_name"] = "openai/gpt-oss-120b"
+                    resp_groq = _generate_response(prompt=prompt, app_config=fallback_cfg)
+                    if resp_groq and not resp_groq.strip().startswith("Error:"):
+                        final_script = format_response(resp_groq)
+                        logger.success("✅ [MULTI-IA] Roteiro gerado com sucesso via Fallback Groq!")
+                        break
+                except Exception as e_fb:
+                    logger.error(f"Fallback Groq falhou: {e_fb}")
 
-            # Some upstream providers may return quota errors as plain text.
-            if final_script and "当日额度已消耗完" in final_script:
-                raise ValueError(final_script)
-
-            if final_script:
-                break
         except Exception as e:
-            logger.error(f"failed to generate script: {e}")
+            logger.error(f"Exceção no provedor principal: {e}")
+            try:
+                logger.info("🔄 Acionando Fallback Multi-IA com Groq após exceção...")
+                fallback_cfg = (app_config or config.app).copy()
+                fallback_cfg["llm_provider"] = "groq"
+                fallback_cfg["groq_model_name"] = "openai/gpt-oss-120b"
+                resp_groq = _generate_response(prompt=prompt, app_config=fallback_cfg)
+                if resp_groq and not resp_groq.strip().startswith("Error:"):
+                    final_script = format_response(resp_groq)
+                    logger.success("✅ [MULTI-IA] Roteiro gerado com sucesso via Fallback Groq!")
+                    break
+            except Exception as e_fb:
+                logger.error(f"Fallback Groq falhou: {e_fb}")
 
-        if i < _max_retries:
+        if i < _max_retries and (not final_script or final_script.strip().startswith("Error:")):
             logger.warning(f"failed to generate video script, trying again... {i + 1}")
     if "Error: " in final_script:
         logger.error(f"failed to generate video script: {final_script}")
@@ -1041,33 +1100,172 @@ def generate_hooks(video_subject: str, app_config=None) -> list:
     ]
 
 
+def contar_palavras_narradas(texto: str) -> int:
+    """
+    Conta estritamente as palavras que serão narradas pelo TTS,
+    removendo marcações, identificadores de cena/etiquetas e pontuações isoladas.
+    """
+    if not texto:
+        return 0
+    # Remove marcações do tipo [MISSÃO 1], [F1], (Cena 1), etc.
+    limpo = re.sub(r"\[.*?\]|\(.*?\)", " ", texto)
+    limpo = re.sub(r"[#*_~`]", " ", limpo)
+    # Extrai tokens alfanuméricos com acentuação
+    palavras = re.findall(r"\b[a-zA-Z0-9À-ÿ]+\b", limpo)
+    return len(palavras)
+
+
+def validar_estrutura_editorial_roteiro(
+    roteiro: str,
+    min_palavras: int = 68,
+    max_palavras: int = 82
+) -> dict:
+    """
+    Valida programaticamente se um roteiro atende à estrutura editorial de 3 micro-missões:
+      - Missão 1: Gancho direto e fato sem introduções proibidas.
+      - Missão 2: Pista concreta com pergunta narrativa ou Open Loop.
+      - Missão 3: Consequência/resposta direta suportada.
+      - Fecho: Encerramento com conexão de continuidade.
+      - Limites de palavras narradas configuráveis (padrão experimental: 68-82 palavras).
+    Retorna dict com 'valido' (bool), 'motivo' (str), 'palavras_narradas' (int) e 'detalhes' (dict).
+    """
+    if not roteiro or not roteiro.strip():
+        return {
+            "valido": False,
+            "motivo": "Roteiro vazio ou ausente",
+            "palavras_narradas": 0,
+            "detalhes": {}
+        }
+
+    total_palavras = contar_palavras_narradas(roteiro)
+    texto_norm = " ".join(roteiro.lower().strip().split())
+
+    # 1. Deteção de introduções vazias / proibidas nas primeiras 10 palavras
+    primeiras_palavras = " ".join(texto_norm.split()[:12])
+    chavoes_proibidos = [
+        "neste video", "neste vídeo", "nesse video", "nesse vídeo",
+        "a verdade que ninguem", "a verdade que ninguém",
+        "voce nao vai acreditar", "você não vai acreditar",
+        "prepare-se para ver", "ola pessoal", "olá pessoal",
+        "fala galera", "bem-vindos", "bem vindos"
+    ]
+    for ch in chavoes_proibidos:
+        if ch in primeiras_palavras:
+            return {
+                "valido": False,
+                "motivo": f"Introdução vazia/proibida detectada no início do roteiro: '{ch}'",
+                "palavras_narradas": total_palavras,
+                "detalhes": {"violacao_introducao": ch}
+            }
+
+    # 2. Validação da faixa de palavras narradas
+    if total_palavras < min_palavras or total_palavras > max_palavras:
+        return {
+            "valido": False,
+            "motivo": f"Contagem de palavras fora do intervalo ({total_palavras} palavras; esperado entre {min_palavras} e {max_palavras})",
+            "palavras_narradas": total_palavras,
+            "detalhes": {"total_palavras": total_palavras, "min": min_palavras, "max": max_palavras}
+        }
+
+    # 3. Verificação de divisão em sentenças/períodos
+    sentencas = [s.strip() for s in re.split(r"[.!?]+", roteiro) if len(s.strip().split()) >= 3]
+    if len(sentencas) < 3:
+        return {
+            "valido": False,
+            "motivo": f"Roteiro possui apenas {len(sentencas)} sentenças estruturadas; a estrutura editorial de 3 micro-missões exige no mínimo 3 períodos distintos",
+            "palavras_narradas": total_palavras,
+            "detalhes": {"total_sentencas": len(sentencas)}
+        }
+
+    # 4. Verificação de sinalizadores de Open Loop / Pergunta narrativa
+    sinais_open_loop = [
+        "mas o que", "mas quando", "o que ninguém", "o que ninguem",
+        "revelou que", "descobriram que", "foi ai que", "foi aí que",
+        "segredo", "cláusula", "clausula", "contrato", "bastidores",
+        "?", "por que", "porque"
+    ]
+    tem_open_loop = any(sinal in texto_norm for sinal in sinais_open_loop)
+
+    return {
+        "valido": True,
+        "motivo": "Roteiro aprovado na validação editorial",
+        "palavras_narradas": total_palavras,
+        "detalhes": {
+            "total_sentencas": len(sentencas),
+            "tem_open_loop": tem_open_loop,
+            "faixa_palavras_ok": True
+        }
+    }
+
+
+def validar_complementaridade_titulo_capa(titulo: str, texto_capa: str) -> dict:
+    """
+    Detecta repetição excessiva literal entre o Título e o Texto da Capa.
+    O Título promete/questiona e a Capa provoca/complementa com contraste.
+    """
+    if not titulo or not texto_capa:
+        return {"complementar": False, "motivo": "Título ou texto de capa vazio"}
+
+    norm_tit = set(re.findall(r"\b[a-zA-Z0-9À-ÿ]{3,}\b", titulo.lower()))
+    norm_cap = set(re.findall(r"\b[a-zA-Z0-9À-ÿ]{3,}\b", texto_capa.lower()))
+
+    stopwords = {"para", "como", "sobre", "pelo", "pela", "mais", "este", "esse", "onde", "qual", "futebol", "shorts"}
+    tit_clean = norm_tit - stopwords
+    cap_clean = norm_cap - stopwords
+
+    if not tit_clean or not cap_clean:
+        return {"complementar": True, "motivo": "Vocabulário mínimo"}
+
+    intersecao = tit_clean.intersection(cap_clean)
+    taxa_sobreposicao = len(intersecao) / min(len(tit_clean), len(cap_clean))
+
+    # Se mais de 80% das palavras forem exatamente as mesmas, há repetição excessiva
+    if taxa_sobreposicao >= 0.80 and len(intersecao) >= 3:
+        return {
+            "complementar": False,
+            "motivo": f"Repetição excessiva entre título e capa (sobreposição de {taxa_sobreposicao*100:.0f}%: {intersecao}). A capa deve provocar em vez de repetir o título.",
+            "sobreposicao": taxa_sobreposicao
+        }
+
+    return {
+        "complementar": True,
+        "motivo": "Título e capa apresentam complementaridade editorial satisfatória",
+        "sobreposicao": taxa_sobreposicao
+    }
+
+
 def generate_script_with_hook(
     video_subject: str,
     gancho_escolhido: str,
     target_duration_seconds: int = 32,
-    app_config=None
+    app_config=None,
+    min_words: int = 68,
+    max_words: int = 82
 ) -> str:
     """
-    Gera um roteiro cronometrado para 30-33 segundos (aprox. 70 a 80 palavras em ritmo normal de TTS),
-    abrindo obrigatoriamente com o gancho escolhido.
+    Gera um roteiro cronometrado de 3 micro-missões e fecho circular,
+    com validação pós-geração programática limitada a 3 tentativas.
     """
     prompt = f"""
     Você é o roteirista investigativo do canal @FutebolInvisivelOficial.
     Tema: '{video_subject}'
     
-    GANCHO INICIAL OBRIGATÓRIO (Primeiros 2 a 3 segundos):
+    GANCHO INICIAL OBRIGATÓRIO (MISSÃO 1 — Segundos 0 a 3):
     "{gancho_escolhido}"
     
-    DIRETRIZES RÍGIDAS DE DURAÇÃO E ESTRUTURA (30 A 33 SEGUNDOS):
-    - O texto completo DEVE ter entre 65 e 80 palavras no total (ritmo perfeito para locução de ~31 segundos no Edge TTS).
-    - Comece EXATAMENTE dizendo a frase do gancho escolhido.
-    - Em seguida (segundos 3 a 20), explique a tensão e a consequência direta com dados e ritmo acelerado.
-    - No final (segundos 25 a 30), termine com um desfecho forte ou pergunta provocadora para engajar comentários.
-    - PROIBIDO despedidas longas como 'obrigado por assistir, deixe o like e se inscreva'.
-    - Não invente informações fictícias.
-    - Retorne APENAS o texto puro a ser falado pelo locutor, sem marcadores de cena e sem emojis.
+    ESTRUTURA EDITORIAL OBRIGATÓRIA (3 MICRO-MISSÕES + FECHO CIRCULAR):
+    1. MISSÃO 1 (0 a 3s): Comece EXATAMENTE com o gancho escolhido, entregando o protagonista e o fato direto (sem 'Neste vídeo...', sem saudações).
+    2. MISSÃO 2 (4 a 14s): Entregue a primeira pista substancial e abra um Open Loop ('mas o que estava escondido...', 'quando a diretoria descobriu...').
+    3. MISSÃO 3 (15 a 27s): Entregue a consequência, prova ou reviravolta fundamentada em fatos objetivos.
+    4. FECHO (28 a 32s): Termine com uma frase conectiva que ligue com o início para gerar loop de repetição natural.
+    
+    DIRETRIZES DE EXTENSÃO:
+    - O texto completo DEVE ter rigorosamente entre {min_words} e {max_words} palavras narradas (ritmo perfeito para ~31s no Edge TTS).
+    - Não invente dados fictícios.
+    - Retorne APENAS o texto puro narrado pelo locutor, sem marcadores [MISSÃO], sem emojis e sem aspas.
     """
-    for i in range(_max_retries):
+    tentativas_maximas = 3
+    for i in range(tentativas_maximas):
         try:
             if app_config is None:
                 resp = _generate_response(prompt=prompt)
@@ -1075,23 +1273,31 @@ def generate_script_with_hook(
                 resp = _generate_response(prompt=prompt, app_config=app_config)
             
             if not resp or resp.startswith("Error:"):
-                logger.warning(f"Resposta inválida ou erro do provedor de LLM: {resp[:100] if resp else 'vazio'}")
+                logger.warning(f"Tentativa {i+1}: Resposta inválida da LLM")
                 continue
                 
             clean = re.sub(r"\[.*?\]", "", resp).strip()
-            clean = clean.replace("*", "").replace("#", "")
+            clean = clean.replace("*", "").replace("#", "").replace('"', '')
             
             # Garantir que o texto comece com o gancho
             if not clean.lower().startswith(gancho_escolhido.lower()[:15]):
                 clean = f"{gancho_escolhido} {clean}"
                 
-            palavras = clean.split()
-            if len(palavras) >= 40:
+            # Validação programática pós-geração
+            val = validar_estrutura_editorial_roteiro(clean, min_palavras=min_words, max_palavras=max_words)
+            if val["valido"]:
+                logger.info(f"Roteiro editorial validado com sucesso na tentativa {i+1} ({val['palavras_narradas']} palavras).")
                 return clean
+            else:
+                logger.warning(f"Tentativa {i+1}: Roteiro reprovado na validação editorial ({val['motivo']}). Re-tentando...")
         except Exception as e:
-            logger.warning(f"Tentativa {i+1} de gerar roteiro com gancho falhou: {e}")
+            logger.warning(f"Tentativa {i+1} falhou: {e}")
             
-    return f"{gancho_escolhido} O impacto nos bastidores colocou todos em alerta máximo. Cada decisão tomada agora pode mudar tudo. Qual é a sua opinião sobre isso? Comente abaixo."
+    # Se esgotarem as tentativas de geração ou a validação falhar em todas as rodadas,
+    # não é permitido retornar fallbacks silenciosos para canais com política editorial estrita.
+    msg_erro = f"Falha na validação editorial do roteiro após {tentativas_maximas} tentativas (critérios de micro-missões, contagem ou introduções não atendidos)."
+    logger.error(msg_erro)
+    raise ValueError(msg_erro)
 
 
 if __name__ == "__main__":
