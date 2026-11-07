@@ -190,6 +190,8 @@ def upload_video_youtube(
     youtube = get_authenticated_service(canal_nome=canal_nome)
     
     # Sanitização universal de tags na entrada da API do YouTube
+    # A API do YouTube impõe limites rígidos para bytes UTF-8 em tags (<= 350-400 bytes totais)
+    # e proíbe caracteres de controle, aspas, pontuações especiais, símbolos e tags muito longas.
     tags_limpas = []
     char_acc = 0
     if tags:
@@ -198,16 +200,17 @@ def upload_video_youtube(
             t_clean = str(tg)
             # Remove caracteres proibidos e pontuações que a API do YouTube rejeita em keywords (como : ? ! # < > etc)
             t_clean = re.sub(r'[<>#,\n\r\t:?!"`~\\/|' + "']", "", t_clean)
-
             t_clean = re.sub(r'\s+', ' ', t_clean).strip()
-            t_clean = t_clean[:60].strip()
+            # Remove ponto final que pode vir de final de frases
+            t_clean = t_clean.rstrip(".")
+            t_clean = t_clean[:40].strip()
             if not t_clean or len(t_clean) < 2:
                 continue
-            custo = len(t_clean) + (1 if tags_limpas else 0)
-            if char_acc + custo <= 470 and len(tags_limpas) < 40:
+            custo = len(t_clean.encode('utf-8')) + (1 if tags_limpas else 0)
+            if char_acc + custo <= 320 and len(tags_limpas) < 25:
                 tags_limpas.append(t_clean)
                 char_acc += custo
-            elif char_acc >= 460:
+            elif char_acc >= 300 or len(tags_limpas) >= 25:
                 break
                 
     if not tags_limpas:
@@ -239,8 +242,25 @@ def upload_video_youtube(
     )
     
     response = None
-    while response is None:
-        status, response = request.next_chunk()
+    try:
+        while response is None:
+            status, response = request.next_chunk()
+    except Exception as e_upload:
+        err_msg = str(e_upload).lower()
+        if "invalidtags" in err_msg or "invalid video keywords" in err_msg:
+            logger.warning(f"YouTube rejeitou tags {tags_limpas}. Fazendo retry imediato com tags mínimas de segurança...")
+            body["snippet"]["tags"] = ["shorts", "futebol" if canal_nome == "futebol" else ("negocios" if canal_nome == "fergil" else "moda")]
+            media_retry = MediaFileUpload(file_path, chunksize=-1, resumable=True)
+            request_retry = youtube.videos().insert(
+                part="snippet,status",
+                body=body,
+                media_body=media_retry
+            )
+            response = None
+            while response is None:
+                status, response = request_retry.next_chunk()
+        else:
+            raise e_upload
         
     video_id = response.get("id")
     video_url = f"https://www.youtube.com/watch?v={video_id}"

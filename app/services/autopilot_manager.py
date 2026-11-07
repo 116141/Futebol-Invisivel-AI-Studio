@@ -424,6 +424,15 @@ def executar_ciclo_autopiloto():
             res_san_fer.get("videos_eliminados", 0)
         )
         resultado_ciclo["acoes"].append(f"Varredura Sanitária: {total_del} vídeos com falha ou duplicados eliminados.")
+        
+        # Limpeza física de disco para vídeos já no YouTube
+        try:
+            res_limpeza = channel_sanitizer.limpar_armazenamento_videos_publicados()
+            if res_limpeza.get("videos_pesados_removidos", 0) > 0 or res_limpeza.get("pastas_temp_removidas", 0) > 0:
+                mb_lib = round(res_limpeza.get("bytes_liberados", 0) / (1024 * 1024), 2)
+                resultado_ciclo["acoes"].append(f"Limpeza de Disco: {res_limpeza['videos_pesados_removidos']} vídeos e {res_limpeza['pastas_temp_removidas']} pastas limpas ({mb_lib} MB liberados).")
+        except Exception as e_limp:
+            logger.warning(f"Aviso na limpeza de disco: {e_limp}")
     except Exception as e_san:
         logger.warning(f"Aviso na varredura sanitária: {e_san}")
 

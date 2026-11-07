@@ -171,6 +171,73 @@ def sanitizar_canal_youtube(canal: str = "futebol", dry_run: bool = False) -> di
     """
     return auditar_e_sanear_canal(canal=canal, dry_run=dry_run)
 
+def limpar_armazenamento_videos_publicados() -> dict:
+    """
+    Higienizacao de Armazenamento Local (Disk Cleanup):
+    Varre os videos ja postados no YouTube com confirmacao de ID remoto.
+    Exclui os arquivos pesados locais (.mp4 e diretorios temporarios temp_web_build_*),
+    preservando no disco os metadados leves (.txt de postagem e registro permanente no SQLite).
+    """
+    import glob
+    import shutil
+    import time
+    import autoviral_brain
+    
+    relatorio = {
+        "videos_pesados_removidos": 0,
+        "pastas_temp_removidas": 0,
+        "bytes_liberados": 0
+    }
+    
+    try:
+        conn = autoviral_brain.get_conn()
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT task_id, file_path, txt_path, status, youtube_video_id 
+            FROM videos_gerados 
+            WHERE youtube_video_id IS NOT NULL 
+              AND youtube_video_id != ''
+        """)
+        rows = cur.fetchall()
+        conn.close()
+        
+        for r in rows:
+            fpath = r["file_path"]
+            if fpath and os.path.exists(fpath):
+                try:
+                    tam = os.path.getsize(fpath)
+                    os.remove(fpath)
+                    relatorio["videos_pesados_removidos"] += 1
+                    relatorio["bytes_liberados"] += tam
+                    logger.info(f"🗑️ [LIMPEZA DISCO] Arquivo de vídeo local removido (já no YouTube): {fpath} ({round(tam / (1024*1024), 2)} MB liberados)")
+                except Exception as ex_f:
+                    logger.warning(f"Aviso ao remover vídeo local {fpath}: {ex_f}")
+
+        # Limpeza de diretorios temp_web_build_* que ja concluiram
+        for temp_dir in glob.glob("temp_web_build_*"):
+            if os.path.isdir(temp_dir):
+                try:
+                    idade_seg = time.time() - os.path.getmtime(temp_dir)
+                    if idade_seg > 1200: # 20 minutos
+                        for root, dirs, files in os.walk(temp_dir):
+                            for fl in files:
+                                fp = os.path.join(root, fl)
+                                if os.path.exists(fp):
+                                    relatorio["bytes_liberados"] += os.path.getsize(fp)
+                        shutil.rmtree(temp_dir, ignore_errors=True)
+                        relatorio["pastas_temp_removidas"] += 1
+                        logger.info(f"🧹 [LIMPEZA DISCO] Pasta temporaria removida: {temp_dir}")
+                except Exception as ex_td:
+                    logger.warning(f"Aviso limpando pasta temporaria {temp_dir}: {ex_td}")
+
+    except Exception as e:
+        logger.error(f"Erro na limpeza de armazenamento de videos: {e}")
+        
+    mb_lib = round(relatorio["bytes_liberados"] / (1024 * 1024), 2)
+    logger.info(f"💾 [LIMPEZA DISCO CONCLUIDA] {relatorio['videos_pesados_removidos']} videos e {relatorio['pastas_temp_removidas']} pastas limpas. Total liberado: {mb_lib} MB.")
+    return relatorio
+
+
 if __name__ == "__main__":
     import sys
     dry = "--delete" not in sys.argv

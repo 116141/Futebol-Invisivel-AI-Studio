@@ -2034,24 +2034,24 @@ def api_upload_video_youtube(task_id: str, privacy: str = "unlisted"):
             
     # Sanitização estrita de tags para a API do YouTube:
     # 1. Proibido caracteres: <, >, #, quebras de linha ou vírgulas internas
-    # 2. Máximo de 100 caracteres por tag individual
-    # 3. Total de caracteres somados <= 485
+    # 2. Máximo de 40 caracteres por tag individual
+    # 3. Total de bytes somados <= 320 e máximo 25 tags
     import re
     tags_list = []
     char_count = 0
     for t in lista_final_candidatos:
         t_san = str(t)
         t_san = re.sub(r'[<>#,\n\r\t:?!"`~\\/|' + "']", "", t_san)
-
         t_san = re.sub(r'\s+', ' ', t_san).strip()
-        t_san = t_san[:60].strip()
+        t_san = t_san.rstrip(".")
+        t_san = t_san[:40].strip()
         if not t_san or len(t_san) < 2:
             continue
-        custo = len(t_san) + (1 if tags_list else 0)
-        if char_count + custo <= 480 and len(tags_list) < 45:
+        custo = len(t_san.encode('utf-8')) + (1 if tags_list else 0)
+        if char_count + custo <= 320 and len(tags_list) < 25:
             tags_list.append(t_san)
             char_count += custo
-        elif char_count >= 465:
+        elif char_count >= 300 or len(tags_list) >= 25:
             break
             
     if not tags_list:
@@ -2158,13 +2158,13 @@ def api_upload_video_youtube(task_id: str, privacy: str = "unlisted"):
             autoviral_brain.salvar_tarefa_db(task_id, task)
             raise HTTPException(status_code=401, detail=f"Falha de autenticação OAuth no canal {canal_real}.")
 
-        elif diag["categoria"] == "NETWORK_ERROR":
+        elif diag["categoria"] in ("NETWORK_ERROR", "METADATA_INVALID"):
             task["status"] = "RENDERIZADO_AGUARDANDO_UPLOAD"
             autoviral_brain.salvar_tarefa_db(task_id, task)
-            raise HTTPException(status_code=504, detail="Falha de rede/timeout ao conectar com o YouTube. Vídeo preservado para nova tentativa.")
+            raise HTTPException(status_code=500, detail=f"Erro temporário de envio ({diag['categoria']}): {e}. Vídeo preservado em RENDERIZADO_AGUARDANDO_UPLOAD para escoamento automático.")
 
         else:
-            task["status"] = f"ERRO_UPLOAD: {str(e)[:100]}"
+            task["status"] = "RENDERIZADO_AGUARDANDO_UPLOAD"
             autoviral_brain.salvar_tarefa_db(task_id, task)
             raise HTTPException(status_code=500, detail=str(e))
 
