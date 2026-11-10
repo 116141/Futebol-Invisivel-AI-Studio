@@ -123,6 +123,27 @@ const form = document.getElementById('createForm');
             }
         }
 
+        async function agendarVideosTodosCanais() {
+            if (!confirm('📅 Deseja analisar a esteira e AGENDAR os vídeos prontos de TODOS os canais (Futebol, Fergil e Moda) nos horários de pico (hoje e próximos dias)?')) return;
+            const btn = document.getElementById('btnAgendarTodos');
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Agendando...';
+            }
+            try {
+                const res = await fetch('/api/agendador/executar_todos', { method: 'POST' });
+                const data = await res.json();
+                alert('📅 ' + (data.mensagem || 'Agendamento em lote disparado com sucesso!'));
+            } catch (e) {
+                alert('Erro ao agendar vídeos: ' + e.message);
+            } finally {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = '<i class="bi bi-calendar-check-fill me-1"></i>📅 Agendar Vídeos (Todos Canais)';
+                }
+            }
+        }
+
         async function executarAutopilotAgora() {
             if (!confirm('Deseja DISPARAR a produção de 1 ciclo autônomo agora mesmo (Futebol + Moda + Postagem Unlisted)?')) return;
             const btn = document.getElementById('btnExecutarAgoraAutopilot');
@@ -181,28 +202,41 @@ const form = document.getElementById('createForm');
         }
 
         async function dispararBotRespostas() {
-            const escolha = confirm("Qual canal você deseja que o Bot responda comentários agora?\n\nOK = Canal Futebol (@FutebolInvisivelOficial)\nCancelar = Canal Moda (@AlanaCruzOficial)") ? "futebol" : "moda";
+            const op = prompt("Qual canal você deseja que o Bot responda comentários agora?\n\nDigite o número ou nome:\n1 ou futebol = Futebol Invisível\n2 ou fergil = FERGIL (Negócios)\n3 ou moda = Alana Cruz (Moda)\ntodos = Responder em TODOS os canais", "todos");
+            if (!op) return;
+            const opL = op.trim().toLowerCase();
+            let listaCanais = [];
+            if (opL === "1" || opL === "futebol") listaCanais = ["futebol"];
+            else if (opL === "2" || opL === "fergil") listaCanais = ["fergil"];
+            else if (opL === "3" || opL === "moda") listaCanais = ["moda"];
+            else if (opL === "todos" || opL === "all") listaCanais = ["futebol", "fergil", "moda"];
+            else listaCanais = [opL];
+
             const btn = document.getElementById('btnBotRespostas');
             const originalText = btn.innerHTML;
             btn.disabled = true;
             btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Respondendo...';
 
             try {
-                const res = await fetch(`/api/youtube/responder_comentarios?canal=${escolha}&max_respostas=10`, { method: 'POST' });
-                const data = await res.json();
-                if (!res.ok || data.erro) throw new Error(data.erro || data.detail || "Erro no bot de respostas");
+                let msgGeral = "💬 RESUMO BOT DE RESPOSTAS:\n\n";
+                let totalRespondidosGeral = 0;
 
-                let msg = `💬 BOT DE COMENTÁRIOS: CANAL ${escolha.toUpperCase()}\n\n`;
-                msg += `✅ Total de inscritos respondidos: ${data.comentarios_respondidos}\n\n`;
-                if (data.comentarios_respondidos > 0) {
-                    msg += "Últimas interações:\n";
-                    data.detalhes.forEach(d => {
-                        msg += `• @${d.autor}: "${d.resposta_enviada.substring(0, 45)}..."\n`;
-                    });
-                } else {
-                    msg += "Todos os comentários recentes já foram respondidos pelo canal!";
+                for (const canal of listaCanais) {
+                    try {
+                        const res = await fetch(`/api/youtube/responder_comentarios?canal=${canal}&max_respostas=10`, { method: 'POST' });
+                        const data = await res.json();
+                        if (res.ok && !data.erro) {
+                            totalRespondidosGeral += (data.comentarios_respondidos || 0);
+                            msgGeral += `• ${canal.toUpperCase()}: ${data.comentarios_respondidos || 0} respondidos.\n`;
+                        } else {
+                            msgGeral += `• ${canal.toUpperCase()}: Erro (${data.detail || data.erro})\n`;
+                        }
+                    } catch (eC) {
+                        msgGeral += `• ${canal.toUpperCase()}: Falha na requisição.\n`;
+                    }
                 }
-                alert(msg);
+                msgGeral += `\n✅ Total geral de inscritos respondidos: ${totalRespondidosGeral}`;
+                alert(msgGeral);
             } catch (err) {
                 alert("Erro ao acionar bot de respostas: " + err.message);
             } finally {
@@ -211,33 +245,63 @@ const form = document.getElementById('createForm');
             }
         }
 
-        async function auditarEAutoFixarComentarios() {
-            const escolhaCanal = confirm("Deseja auditar e fixar comentários no Canal de FUTEBOL?\n\nOK = Canal Futebol (@FutebolInvisivelOficial)\nCancelar = Canal Moda (@AlanaCruzOficial)") ? "futebol" : "moda";
+        async function varrerECorrigirCanais() {
+    if (!confirm('🧹 Deseja acionar o Robô Guardião para varrer o YouTube agora e higienizar/corrigir as descrições de TODOS os canais (Futebol, Fergil, Moda)?\n\nEle removerá minutagens falsas, links duplicados e tags técnicas automaticamente.')) return;
+    const btn = document.getElementById('btnVarrerCorrigirCanais');
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Varrendo & Corrigindo...';
+    }
+    try {
+        const res = await fetch('/api/canais/varrer_e_corrigir', { method: 'POST' });
+        const data = await res.json();
+        alert('🧹 ' + (data.mensagem || 'Robô de higienização acionado com sucesso!'));
+    } catch (e) {
+        alert('Erro ao acionar robô: ' + e.message);
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-shield-fill-check me-1"></i>🧹 Varrer & Corrigir Descrições (Todos Canais)';
+        }
+    }
+}
+
+async function auditarEAutoFixarComentarios() {
+            const op = prompt("Deseja auditar e auto-fixar comentários em qual canal?\n\nDigite o número ou nome:\n1 ou futebol = Futebol Invisível\n2 ou fergil = FERGIL (Negócios)\n3 ou moda = Alana Cruz (Moda)\ntodos = Fixar comentários em TODOS os canais", "todos");
+            if (!op) return;
+            const opL = op.trim().toLowerCase();
+            let listaCanais = [];
+            if (opL === "1" || opL === "futebol") listaCanais = ["futebol"];
+            else if (opL === "2" || opL === "fergil") listaCanais = ["fergil"];
+            else if (opL === "3" || opL === "moda") listaCanais = ["moda"];
+            else if (opL === "todos" || opL === "all") listaCanais = ["futebol", "fergil", "moda"];
+            else listaCanais = [opL];
+
             const btn = document.getElementById('btnAuditarComentarios');
             const originalText = btn.innerHTML;
             btn.disabled = true;
             btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Auditando vídeos...';
 
             try {
-                const res = await fetch(`/api/youtube/auditar_comentarios?canal=${escolhaCanal}&max_videos=15`, { method: 'POST' });
-                const data = await res.json();
-                if (!res.ok || data.erro) throw new Error(data.erro || data.detail || "Erro na auditoria");
+                let msgGeral = "🎯 RESUMO DA FIXAÇÃO DE COMENTÁRIOS:\n\n";
+                let totalCriados = 0;
 
-                let msg = `🎯 AUDITORIA CONCLUÍDA NO CANAL ${data.canal.toUpperCase()}!\n\n`;
-                msg += `📺 Vídeos analisados: ${data.videos_analisados}\n`;
-                msg += `💬 Novos comentários fixados/postados: ${data.comentarios_criados}\n`;
-                msg += `✅ Vídeos que já tinham comentário: ${data.ja_tinham_comentario}\n\n`;
-
-                if (data.comentarios_criados > 0) {
-                    msg += "Detalhe das postagens:\n";
-                    data.detalhes.filter(d => d.status === "ComentarioCriadoEPostado").forEach(d => {
-                        msg += `• "${d.titulo.substring(0, 40)}..." -> Comentário fixado!\n`;
-                    });
-                } else {
-                    msg += "Todos os vídeos recentes já estavam com seus comentários fixados!";
+                for (const canal of listaCanais) {
+                    try {
+                        const res = await fetch(`/api/youtube/auditar_comentarios?canal=${canal}&max_videos=15`, { method: 'POST' });
+                        const data = await res.json();
+                        if (res.ok && !data.erro) {
+                            totalCriados += (data.comentarios_criados || 0);
+                            msgGeral += `• ${canal.toUpperCase()}: ${data.videos_analisados} analisados | ${data.comentarios_criados} novos comentários fixados.\n`;
+                        } else {
+                            msgGeral += `• ${canal.toUpperCase()}: Erro (${data.detail || data.erro})\n`;
+                        }
+                    } catch (eC) {
+                        msgGeral += `• ${canal.toUpperCase()}: Falha na requisição.\n`;
+                    }
                 }
-
-                alert(msg);
+                msgGeral += `\n💬 Total de novos comentários fixados: ${totalCriados}`;
+                alert(msgGeral);
             } catch (err) {
                 alert("Erro ao auditar/fixar comentários: " + err.message);
             } finally {

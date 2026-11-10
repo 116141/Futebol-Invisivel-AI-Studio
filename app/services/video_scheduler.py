@@ -156,7 +156,14 @@ def auditar_esteira_e_maturacao(canal: str = "futebol", force_refresh: bool = Fa
         return resultado
         
     except Exception as e:
-        logger.error(f"Erro auditando esteira de maturação: {e}")
+        err_s = str(e).lower()
+        if "quotaexceeded" in err_s or "quota" in err_s:
+            logger.warning(f"🛑 [COTA YOUTUBE] Cota diária da API atingida para {canal}. Entrando em modo econômico (cache local de 2h).")
+            # Salva no cache com validade de 2 horas para não continuar tentando e gastar cota
+            auditar_esteira_e_maturacao._cache[canal] = resultado
+            auditar_esteira_e_maturacao._cache_ts[canal] = now_ts
+        else:
+            logger.error(f"Erro auditando esteira de maturação: {e}")
         resultado["erro"] = str(e)
         return resultado
 
@@ -273,6 +280,8 @@ def auto_liberar_videos_se_no_horario_pico(canal: str = "futebol", tolerancia_mi
     return None
 
 def verificar_capa_e_alertar_urgencia(canal: str = "futebol", minutos_antecedencia: int = 35) -> None:
+    # CAPAS AUTOMÁTICAS PERMANENTEMENTE DESATIVADAS: O usuário envia manualmente todas as capas
+    return
     """
     SENTINELA DE CAPAS & HORÁRIO DE PICO:
     Se um vídeo já está 100% maturado (HD nativo + processado) e faltam poucos minutos para o horário de pico,

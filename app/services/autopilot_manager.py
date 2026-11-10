@@ -77,15 +77,23 @@ def disparar_producao_video_moda():
     """Gera autonomamente um vídeo de moda/afiliado."""
     try:
         import app_render_studio
+        # PESQUISA FOCADA NO PÚBLICO REAL DE ALANA CRUZ (70% MULHERES 55+ ANOS):
+        # Elegância madura, vestidos midi confortáveis, linho/algodão, conjuntos chiques e bolsas de couro
+        # Motor de Inteligência Sazonal: Climatização e parâmetros autônomos por estação do ano
+        from app.services import seasonal_trend_engine
+        contexto_sazonal = seasonal_trend_engine.detectar_contexto_sazonal()
+        termo_escolhido = seasonal_trend_engine.obter_termo_busca_inteligente()
+        logger.info(f"🌿 [MODA INTELIGENTE] Estação Ativa: {contexto_sazonal['rotulo_clima']} | Evento: {contexto_sazonal['evento_especial'] or 'Padrão'} | Termo: '{termo_escolhido}'")
+        
         produtos = aliexpress_affiliate.search_winning_fashion_products(
-            keywords="vestido feminino elegante",
-            page_size=20,
+            keywords=termo_escolhido,
+            page_size=25,
             only_with_video=True
         )
         if not produtos:
             produtos = aliexpress_affiliate.search_winning_fashion_products(
-                keywords="moda feminina elegante",
-                page_size=20,
+                keywords="vestido midi elegante soltinho",
+                page_size=25,
                 only_with_video=False
             )
         if not produtos:
@@ -139,8 +147,13 @@ def disparar_producao_video_moda():
         logger.error(f"Erro na produção de vídeo moda: {e}")
         return False
 
-def disparar_producao_video_fergil(is_doc: bool = False):
-    """Gera autonomamente um vídeo de altíssima retenção para a FERGIL alternando os 5 pilares estratégicos."""
+def disparar_producao_video_fergil(is_doc: bool = True, gerar_par_short: bool = True):
+    """
+    ESTRATÉGIA FERGIL (DOCUMENTÁRIO + SHORT EM DUPLA):
+    1. Produz o Documentário Widescreen (16:9, 3 a 5 min) como ativo profundo de autoridade.
+    2. Se gerar_par_short=True, produz simultaneamente um Short Viral (9:16, 30s) sobre O MESMO TEMA,
+       agindo como isca de tração rápida no feed do Shorts para canalizar inscritos e views para o Documentário!
+    """
     try:
         import app_render_studio
         from canais.canal_03_fergil import editorial_fergil
@@ -152,16 +165,25 @@ def disparar_producao_video_fergil(is_doc: bool = False):
         titulos_existentes = [row["titulo"] for row in cur.fetchall()]
         conn.close()
 
-        # 2. Seleção inteligente e variada da esteira dos 5 pilares
+        # 2. Seleção inteligente e variada da esteira dos 5 pilares com Auditoria do Conselho de IAs
         candidatos = [p for p in editorial_fergil.PAUTAS_FERGIL_MULTIDIMENSIONAIS if not autoviral_brain.verificar_video_duplicado(p["titulo"], "fergil")]
         
         tema_escolhido = None
         if candidatos:
-            # Alterna aleatoriamente entre os pilares não repetidos
             random.shuffle(candidatos)
             tipo_alvo = "doc" if is_doc else "short"
-            compativeis = [c for c in candidatos if c.get("tipo") == tipo_alvo]
-            tema_escolhido = compativeis[0] if compativeis else candidatos[0]
+            compativeis = [c for c in candidatos if c.get("tipo") == tipo_alvo] or candidatos
+            
+            # Conselho Multi-IA: Avalia se a pauta tem substância e protagonista executivo
+            from app.services import dual_ai_editor
+            for cand in compativeis:
+                p_audit = dual_ai_editor.extrair_ou_rejeitar_pauta_vaga(cand["titulo"], canal="fergil")
+                if p_audit.get("valido", True):
+                    tema_escolhido = cand
+                    logger.success(f"💼 [CONSELHO MULTI-IA] Pauta FERGIL APROVADA: '{cand['titulo']}' (Protagonista: {p_audit.get('protagonista')})")
+                    break
+                else:
+                    logger.warning(f"💼 [CONSELHO MULTI-IA] Pauta FERGIL REJEITADA: '{cand['titulo']}' - Motivo: {p_audit.get('motivo')}")
 
         # 3. Fallback: Caçador de notícias de negócios se todas as pautas internas tiverem sido usadas
         if not tema_escolhido:
@@ -181,7 +203,7 @@ def disparar_producao_video_fergil(is_doc: bool = False):
         tipo_v = "doc" if is_doc else "short"
         task_id = str(uuid.uuid4())
         
-        logger.info(f"💼 [FERGIL EDITORIAL] Novo tema selecionado (Pilar: {pilar}): '{titulo}' ({tipo_v.upper()})")
+        logger.info(f"💼 [FERGIL ESTRATÉGIA] Produzindo {tipo_v.upper()} principal: '{titulo}' (Pilar: {pilar})")
 
         gancho_inicial = tema_escolhido.get("gancho", f"Lição profunda sobre poder, riqueza e tomada de decisões em {titulo}.")
         
@@ -203,11 +225,36 @@ def disparar_producao_video_fergil(is_doc: bool = False):
             dossie=dossie
         )
         logger.info(f"Produção FERGIL ({tipo_v}) iniciada com sucesso: {res}")
+
+        # 4. GERAÇÃO EM DUPLA: DISPARA O SHORT VIRAL DO MESMO TEMA!
+        # O Short é a isca perfeita: entrega imediata do YouTube para capturar inscritos e alimentar o documentário!
+        if is_doc and gerar_par_short:
+            try:
+                task_id_short = str(uuid.uuid4())
+                dossie_short = autoviral_brain.gerar_dossie_factual_e_angulo_exclusivo(
+                    titulo_concorrente=f"{titulo} (Short Viral)",
+                    transcricao_concorrente=f"Versão Short dinâmico de 30s. Gancho: {gancho_inicial}. Lição rápida sobre {titulo}.",
+                    url_concorrente="FERGIL Intelligence Shorts",
+                    canal_origem="FERGIL",
+                    task_id=task_id_short
+                )
+                res_short = app_render_studio.iniciar_pipeline_render(
+                    tipo_video="short",
+                    titulo=titulo,
+                    conteudo_base=f"Tema: {titulo}. Versão curta para Shorts. {gancho_inicial}",
+                    canal_destino="fergil",
+                    privacidade="unlisted",
+                    task_id=task_id_short,
+                    dossie=dossie_short
+                )
+                logger.success(f"🚀 [FERGIL PAR ESTRATÉGICO] Short Viral do mesmo tema disparado em paralelo: {res_short}")
+            except Exception as e_short_par:
+                logger.warning(f"Aviso ao gerar Short complementar FERGIL: {e_short_par}")
+
         return True
     except Exception as e:
         logger.error(f"Erro na produção de vídeo FERGIL: {e}")
         return False
-
 
 def escoar_fila_aguardando_upload(canal: str = "fergil") -> dict:
     """
@@ -408,6 +455,19 @@ def executar_ciclo_autopiloto():
             for pub in [pub_fut, pub_mod, pub_fer]:
                 if pub:
                     resultado_ciclo["acoes"].append(f"PICO ATINGIDO: Vídeo '{pub['titulo']}' do canal {pub['canal']} virou PÚBLICO!")
+
+            # NOVO: AUTO-AGENDAMENTO NATIVO ANTECIPADO (Independência de Máquina Ligada)
+            try:
+                from app.services import smart_pre_scheduler
+                for c_agendar in ["futebol", "fergil", "moda"]:
+                    try:
+                        res_agendados = smart_pre_scheduler.executar_fluxo_auto_agendamento(c_agendar)
+                        if res_agendados:
+                            resultado_ciclo["acoes"].append(f"Auto-Agendamento {c_agendar.capitalize()}: {len(res_agendados)} vídeos agendados nos próximos picos.")
+                    except Exception as e_ag:
+                        logger.warning(f"Aviso no auto-agendamento de {c_agendar}: {e_ag}")
+            except Exception as e_mod:
+                logger.warning(f"Aviso ao carregar smart_pre_scheduler: {e_mod}")
         except Exception as e_pico:
             logger.warning(f"Aviso no agendador de pico: {e_pico}")
 
@@ -462,12 +522,19 @@ def executar_ciclo_autopiloto():
             logger.warning(f"🛑 [FUTEBOL] Backlog de uploads atingiu o limite ({max_b} vídeos pendentes). Produção pausada até escoamento.")
         else:
             noticias = autoviral_brain.buscar_noticias_futebol_tempo_real(max_results=20)
+            from app.services import dual_ai_editor
             tema_dupla = ""
             for n in noticias:
                 tit = n.get("titulo", "")
                 if not autoviral_brain.verificar_video_duplicado(tit, "futebol"):
-                    tema_dupla = tit
-                    break
+                    # Filtro do Editor-Chefe (Groq): rejeita manchetes vagas sem protagonista definido!
+                    pauta_audit = dual_ai_editor.extrair_ou_rejeitar_pauta_vaga(tit, canal="futebol")
+                    if pauta_audit.get("valido", True):
+                        tema_dupla = tit
+                        logger.success(f"Pauta APROVADA pelo Editor-Chefe para o piloto automático: '{tit}' (Protagonista: {pauta_audit.get('protagonista')})")
+                        break
+                    else:
+                        logger.warning(f"Pauta REJEITADA pelo Editor-Chefe (vaga ou sem protagonista): '{tit}' - Motivo: {pauta_audit.get('motivo')}")
             if tema_dupla:
                 disparar_producao_video_futebol(is_doc=True, titulo_especifico=tema_dupla)
                 disparar_producao_video_futebol(is_doc=False, titulo_especifico=tema_dupla)
@@ -490,13 +557,10 @@ def executar_ciclo_autopiloto():
             if autoviral_brain.contar_backlog_canal("fergil") >= max_b:
                 logger.warning(f"🛑 [FERGIL] Backlog de uploads atingiu o limite ({max_b} vídeos pendentes). Produção pausada até escoamento.")
             else:
-                logger.info("💼 [FERGIL] Produzindo conteúdo de alta renda (Shorts & Documentários 16:9)...")
-                ultimo_f = AUTOPILOT_CONFIG.get("ultimo_tipo_fergil", "short")
-                produzir_doc_fergil = (ultimo_f == "short")
-                disparar_producao_video_fergil(is_doc=produzir_doc_fergil)
-                AUTOPILOT_CONFIG["ultimo_tipo_fergil"] = "doc" if produzir_doc_fergil else "short"
-                formato_txt = "Documentário Executivo (16:9)" if produzir_doc_fergil else "Short Viral (9:16)"
-                resultado_ciclo["acoes"].append(f"FERGIL: {formato_txt} de Negócios/IA produzido e postado como Não Listado.")
+                logger.info("💼 [FERGIL] Produzindo DUPLA ESTRATÉGICA: Documentário Widescreen + Short Viral do mesmo tema!")
+                # Sempre produz o Documentário como peça de autoridade + Short complementar para tração imediata
+                disparar_producao_video_fergil(is_doc=True, gerar_par_short=True)
+                resultado_ciclo["acoes"].append("FERGIL: Dupla Estratégica gerada (Documentário 16:9 + Short Viral 9:16 do mesmo tema)!")
         except Exception as e_fer:
             logger.warning(f"Falha na produção FERGIL: {e_fer}")
 

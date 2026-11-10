@@ -1211,6 +1211,29 @@ def verificar_video_duplicado(
     fonte_url: str = None,
     product_id: str = None
 ) -> Optional[str]:
+    # REGRA DE DIVERSIDADE EDITORIAL INTELIGENTE (FUTEBOL):
+    # Se o canal Futebol já produziu recentemente sobre uma entidade hiper-repetida (ex: Vinicius / Mourinho),
+    # força a alternância de pauta para dar variedade entre clubes (Flamengo, Palmeiras, Corinthians, Premier League, Barcelona).
+    if canal == "futebol" and titulo_proposto:
+        t_low = titulo_proposto.lower()
+        entidades_saturadas = ["vinícius", "vinicius", "vini jr", "mourinho"]
+        if any(ent in t_low for ent in entidades_saturadas):
+            try:
+                conn_div = sqlite3.connect(DB_PATH)
+                cur_div = conn_div.cursor()
+                cur_div.execute("""
+                    SELECT count(*) FROM videos_gerados 
+                    WHERE canal = 'futebol' 
+                      AND (titulo LIKE '%Vinícius%' OR titulo LIKE '%Vinicius%' OR titulo LIKE '%Mourinho%')
+                      AND criado_em >= datetime('now', '-18 hours')
+                """)
+                repeticoes = cur_div.fetchone()[0]
+                conn_div.close()
+                if repeticoes >= 2:
+                    logger.warning(f"🚫 [DIVERSIDADE EDITORIAL] Tópico '{titulo_proposto[:45]}' pausado: limite de Mourinho/Vini Jr atingido hoje ({repeticoes} vídeos). Priorizando variedade de pautas!")
+                    return "limite_diversidade_atingido"
+            except Exception:
+                pass
     """
     GUARDA ESTRITA ANTI-DUPLICAÇÃO:
     Verifica em metricas_youtube e em videos_gerados (EM QUALQUER ESTADO, INCLUINDO 'ARQUIVADO'):
@@ -1701,49 +1724,67 @@ def buscar_noticias_futebol_tempo_real(query: str = "", max_results: int = 8) ->
     return noticias
 
 
-def buscar_oportunidades_negocios_fergil(query: str = "", max_results: int = 8) -> List[Dict]:
+def buscar_oportunidades_negocios_fergil(query: str = "", max_results: int = 15) -> List[Dict]:
     """
     Caçador autônomo de pautas e notícias de alto impacto para o canal FERGIL:
-    Nicho: Negócios, Dinheiro, Inteligência Artificial, Podcasts e Mentalidade de Sucesso.
-    Varre o Google News RSS em tempo real nas últimas 24h-72h filtrando bilionários, IA e estratégias financeiras.
+    Nicho: Negócios, Dinheiro, Inteligência Artificial, Startups, Podcasts e Mentalidade de Sucesso.
+    Varre múltiplos ângulos no Google News RSS em tempo real nas últimas 24h-72h.
     """
     import urllib.request
     import urllib.parse
     import xml.etree.ElementTree as ET
 
     noticias = []
-    try:
-        if not query or len(query.strip()) < 3:
-            q_termo = '(Elon Musk OR Sam Altman OR Nvidia OR OpenAI OR Inteligencia Artificial OR Warren Buffett OR Steve Jobs OR Jeff Bezos OR podcast negocios OR mercado financeiro OR Forbes bilionarios) when:3d'
-        else:
-            q_termo = f'({query}) when:3d'
+    titulos_vistos = set()
+    
+    if query and len(query.strip()) >= 3:
+        queries = [f'({query}) when:3d']
+    else:
+        queries = [
+            '(Nvidia OR "Jensen Huang" OR OpenAI OR "Sam Altman" OR xAI OR "Elon Musk") when:3d',
+            '(inteligencia artificial negocios OR startups IA OR demissoes tech) when:3d',
+            '("Warren Buffett" OR "Mark Zuckerberg" OR "Jeff Bezos" OR "Donald Trump" economia) when:3d',
+            '(bilionarios Forbes OR IPO mercado financeiro OR Wall Street) when:3d',
+        ]
 
-        q_enc = urllib.parse.quote(q_termo)
-        rss_url = f"https://news.google.com/rss/search?q={q_enc}&hl=pt-BR&gl=BR&ceid=BR:pt-419"
-        req = urllib.request.Request(rss_url, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"})
-        with urllib.request.urlopen(req, timeout=8) as resp:
-            xml_data = resp.read()
-        root = ET.fromstring(xml_data)
-        for item in root.findall(".//item")[:max_results]:
-            title = (item.findtext("title") or "").strip()
-            source_el = item.find("source")
-            source = source_el.text.strip() if source_el is not None and source_el.text else "Forbes / InfoMoney"
-            pub_date = (item.findtext("pubDate") or "").strip()
-            link = (item.findtext("link") or "").strip()
-            if " - " in title:
-                partes = title.rsplit(" - ", 1)
-                title_limpo = partes[0].strip()
-            else:
-                title_limpo = title
-            noticias.append({
-                "titulo": title_limpo,
-                "fonte": source,
-                "data": pub_date,
-                "url": link,
-                "resumo": title_limpo,
-            })
-    except Exception as e_fergil:
-        logger.warning(f"Erro ao caçar pautas FERGIL no Google News: {e_fergil}")
+    for q_termo in queries:
+        try:
+            q_enc = urllib.parse.quote(q_termo)
+            rss_url = f"https://news.google.com/rss/search?q={q_enc}&hl=pt-BR&gl=BR&ceid=BR:pt-419"
+            req = urllib.request.Request(rss_url, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"})
+            with urllib.request.urlopen(req, timeout=6) as resp:
+                xml_data = resp.read()
+            root = ET.fromstring(xml_data)
+            for item in root.findall(".//item"):
+                title = (item.findtext("title") or "").strip()
+                if " - " in title:
+                    title_limpo = title.rsplit(" - ", 1)[0].strip()
+                else:
+                    title_limpo = title
+                
+                title_key = title_limpo.lower()
+                if not title_limpo or title_key in titulos_vistos:
+                    continue
+                titulos_vistos.add(title_key)
+                
+                source_el = item.find("source")
+                source = source_el.text.strip() if source_el is not None and source_el.text else "Bloomberg / InfoMoney"
+                pub_date = (item.findtext("pubDate") or "").strip()
+                link = (item.findtext("link") or "").strip()
+                
+                noticias.append({
+                    "titulo": title_limpo,
+                    "fonte": source,
+                    "data": pub_date,
+                    "url": link,
+                    "resumo": title_limpo,
+                })
+                if len(noticias) >= max_results:
+                    break
+        except Exception as e_q:
+            logger.debug(f"Erro em subconsulta FERGIL ({q_termo[:25]}...): {e_q}")
+        if len(noticias) >= max_results:
+            break
 
     # Fallback editorial permanente com lições de alto calibre e psicologia de riqueza
     if not noticias:

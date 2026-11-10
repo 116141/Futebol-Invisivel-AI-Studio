@@ -1,4 +1,8 @@
+import os
 import re
+import glob
+import shutil
+import time
 from loguru import logger
 from app.services import youtube_uploader
 
@@ -29,8 +33,9 @@ def auditar_e_sanear_canal(canal: str = "moda", dry_run: bool = True) -> dict:
     now_ts = time.time()
     if not hasattr(auditar_e_sanear_canal, '_ultimo_check'):
         auditar_e_sanear_canal._ultimo_check = {}
-    if now_ts - auditar_e_sanear_canal._ultimo_check.get(canal, 0) < 14400 and not dry_run:
-        relatorio["motivo"] = "Auditoria pulada: última varredura há menos de 4 horas (preservação de cota)"
+    # Intervalo de segurança reduzido para 15 minutos (900s) para garantir que vídeos bloqueados sejam deletados rápido!
+    if now_ts - auditar_e_sanear_canal._ultimo_check.get(canal, 0) < 900 and not dry_run:
+        relatorio["motivo"] = "Auditoria recente há menos de 15 min"
         return relatorio
 
     try:
@@ -99,21 +104,39 @@ def auditar_e_sanear_canal(canal: str = "moda", dry_run: bool = True) -> dict:
             # Normalização de título para identificar o mesmo produto/tema
             titulo_norm = re.sub(r'[^a-zA-Z0-9]', '', titulo.lower())[:30]
 
-            # Verificação de Bloqueios e Direitos Autorais (Content ID)
+            # Verificação RIGOROSA de Bloqueios Globais / Direitos Autorais (Content ID)
             content_details = v_info.get("contentDetails", {})
             region_restriction = content_details.get("regionRestriction", {})
             blocked_regions = region_restriction.get("blocked", [])
+            allowed_regions = region_restriction.get("allowed", None)
+            rejection_reason = status.get("rejectionReason", "")
 
             motivo_descarte = None
 
-            # REGRA D (PRIORITÁRIA): Bloqueio por Direitos Autorais / Reivindicação Content ID
-            if blocked_regions:
-                motivo_descarte = f"Reivindicado/Bloqueado em {len(blocked_regions)} territórios (Content ID: {','.join(blocked_regions[:5])}...)"
+            # REGRA D (MÁXIMA PRIORIDADE): Vídeo Bloqueado a Nível Global ou Reivindicado pelo Content ID
+            # Se foi rejeitado, se tem bloqueio regional amplo ou se está bloqueado globalmente
+            if rejection_reason:
+                motivo_descarte = f"Bloqueado pelo YouTube (RejectionReason: {rejection_reason})"
+                relatorio["incompletos_identificados"] += 1
+            elif blocked_regions and len(blocked_regions) >= 1:
+                motivo_descarte = f"Bloqueado/Reivindicado por Direitos Autorais em {len(blocked_regions)} territórios (Content ID)"
+                relatorio["incompletos_identificados"] += 1
+            elif allowed_regions is not None and len(allowed_regions) == 0:
+                motivo_descarte = "Bloqueado a nível global (Nenhum país permitido)"
+                relatorio["incompletos_identificados"] += 1
+            elif vid_id in ["gWEY82KmszA", "jmqn3P6Auoc", "P2V4gILZanY"]:
+                motivo_descarte = "Vídeo bloqueado por Content ID identificado manualmente"
                 relatorio["incompletos_identificados"] += 1
 
             # REGRA A: Vídeo quebrado / falha de upload no YouTube
             elif upload_status not in ("processed", "uploaded"):
                 motivo_descarte = f"UploadStatus Inválido ({upload_status})"
+                relatorio["incompletos_identificados"] += 1
+
+            # REGRA T (TESTES RESIDUAIS): Exclui vídeos de teste abandonados ('Test title', 'test', 'teste')
+            is_test_title = any(t_t in titulo.lower() for t_t in ["test title", "test", "teste", "video teste", "fake video"])
+            if is_test_title and privacy in ("private", "unlisted") and views == 0:
+                motivo_descarte = f"Vídeo residual de Teste descartado ({titulo})"
                 relatorio["incompletos_identificados"] += 1
 
             # REGRA B: Vídeo de Moda sem Link de Afiliado e Não Listado com 0 views

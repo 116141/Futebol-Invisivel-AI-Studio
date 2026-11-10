@@ -2,7 +2,10 @@ import os
 import json
 import re
 from loguru import logger
-from google_auth_oauthlib.flow import InstalledAppFlow
+try:
+    from google_auth_oauthlib.flow import InstalledAppFlow
+except ImportError:
+    InstalledAppFlow = None
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
@@ -265,17 +268,10 @@ def upload_video_youtube(
     video_id = response.get("id")
     video_url = f"https://www.youtube.com/watch?v={video_id}"
     
-    # Upload da miniatura se houver
+    # BLOQUEIO ABSOLUTO DE CAPAS AUTOMÁTICAS (DIRETRIZ DO PROPRIETÁRIO):
+    # O sistema NUNCA deve gerar nem enviar miniaturas/capas pelo YouTube.
+    # O próprio proprietário fará o envio manual de todas as capas personalizadas.
     thumb_uploaded = False
-    if thumbnail_path and os.path.exists(thumbnail_path) and video_id:
-        try:
-            youtube.thumbnails().set(
-                videoId=video_id,
-                media_body=MediaFileUpload(thumbnail_path)
-            ).execute()
-            thumb_uploaded = True
-        except Exception as e:
-            logger.warning(f"Aviso ao enviar miniatura ({video_id}): {e}")
             
     return {
         "status": "success",

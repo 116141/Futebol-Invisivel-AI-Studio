@@ -227,7 +227,11 @@ def processar_video(task_id: str, titulo: str, tipo: str, uploaded_image_paths: 
 
         if ali_product:
             product_id = str(ali_product.get("product_id", ""))
-            link_afiliado = ali_product.get("short_link") or ali_product.get("detail_url", "")
+            link_afiliado = ali_product.get("short_link") or ""
+            if not link_afiliado or "s.click.aliexpress.com" not in link_afiliado:
+                raw_u = ali_product.get("detail_url") or ali_product.get("product_detail_url") or (f"https://pt.aliexpress.com/item/{product_id}.html" if product_id else "")
+                if raw_u:
+                    link_afiliado = aliexpress_affiliate.generate_short_affiliate_link(raw_u)
             preco_afiliado = ali_product.get("sale_price", "")
             comissao_pct = ali_product.get("commission_rate", "")
             if not titulo or len(titulo.strip()) < 4:
@@ -297,7 +301,7 @@ def processar_video(task_id: str, titulo: str, tipo: str, uploaded_image_paths: 
         if is_afiliado:
             TASKS[task_id]["status"] = "Gerando Copywriting Viral de Vendas (Alana Cruz + AutoViralBrain)..."
             voz_locutor = "pt-BR-FranciscaNeural"  # Voz feminina envolvente para moda
-            tempo_desc = "um vídeo vertical de 35 a 45 segundos para TikTok, YouTube Shorts e Instagram Reels"
+            tempo_desc = "um vídeo vertical ultra-dinâmico de 20 a 24 segundos (máximo 45 a 55 palavras faladas) para retenção máxima no YouTube Shorts"
             
             # 4 Ângulos Dinâmicos de Copywriting para evitar repetição
             estilos_copy = [
@@ -305,11 +309,10 @@ def processar_video(task_id: str, titulo: str, tipo: str, uploaded_image_paths: 
                     "nome": "achadinho_secreto",
                     "diretriz": "Foque no GATILHO DE DESCOBERTA E PREÇO BAIXO (ex: 'Parem tudo! Vocês não têm noção do achadinho que eu encontrei...', 'Parece que custou mil reais, mas paguei preço de banana...'). Enfatize o desconto secreto e como vale cada centavo.",
                     "fallback": (
-                        f"Parem tudo, meninas! Vocês não têm noção da perfeição que eu acabei de encontrar: {titulo}! "
-                        "Parece que foi comprada numa boutique de luxo caríssima, mas o preço é inacreditável de tão barato! "
-                        "O acabamento é maravilhoso, modela com leveza e valoriza demais qualquer produção. "
-                        "Já salva esse vídeo pra não perder, compartilha com a sua amiga estilosa e se inscreve no canal para receber os achadinhos todo dia! "
-                        "O link oficial com cupom exclusivo tá liberado no primeiro comentário fixado e na bio. Corre antes que esgote!"
+                        f"Meninas, parem tudo! Olha esse achadinho elegante: {titulo}! "
+                        "Parece de boutique de luxo, mas custa preço de banana. "
+                        "O caimento é impecável, super confortável e não marca nada. "
+                        "O link com cupom tá no primeiro comentário fixado! Já se inscreve pra mais achadinhos!"
                     )
                 },
                 {
@@ -353,13 +356,21 @@ def processar_video(task_id: str, titulo: str, tipo: str, uploaded_image_paths: 
                 cat_detectada = "relógio de luxo"
             elif any(w in t_low for w in ["colar", "brinco", "anel", "pulseira", "semijoia", "joia"]):
                 cat_detectada = "joia / acessório elegante"
-            elif any(w in t_low for w in ["sapato", "salto", "sandalia", "sandália", "scarpin"]):
+            elif any(w in t_low for w in ["casaco", "sobretudo", "trench", "jaqueta", "suéter", "sueter", "cardigan", "tricot", "trico", "pashmina", "cachecol"]):
+                cat_detectada = "casaco / moda inverno elegante"
+            elif any(w in t_low for w in ["bota", "coturno", "botinha"]):
+                cat_detectada = "bota / calçado de inverno"
+            elif any(w in t_low for w in ["meia", "termica", "térmica"]):
+                cat_detectada = "meia-calça térmica translúcida"
+            elif any(w in t_low for w in ["sapato", "salto", "sandalia", "sandália", "scarpin", "mule", "mocassim"]):
                 cat_detectada = "sapato / calçado elegante"
             elif any(w in t_low for w in ["oculos", "óculos"]):
-                cat_detectada = "óculos de sol"
+                cat_detectada = "óculos de sol de luxo"
+            elif any(w in t_low for w in ["maquiagem", "skincare", "escova", "secador", "organizador", "espelho"]):
+                cat_detectada = "beleza / acessório viral"
             elif any(w in t_low for w in ["vestido"]):
                 cat_detectada = "vestido"
-            elif any(w in t_low for w in ["conjunto", "blazer", "terno"]):
+            elif any(w in t_low for w in ["conjunto", "blazer", "terno", "calça", "calca", "pantalona", "camisa"]):
                 cat_detectada = "conjunto / alfaiataria"
 
             copy_escolhida = random.choice(estilos_copy)
@@ -367,16 +378,29 @@ def processar_video(task_id: str, titulo: str, tipo: str, uploaded_image_paths: 
             logger.info(f"Categoria Detectada: {cat_detectada} | Ângulo de Copy: {copy_escolhida['nome']}")
             detalhe_preco = f"Preço promocional atual: {preco_afiliado}." if preco_afiliado else ""
             
+            from app.services import seasonal_trend_engine
+            ctx_sazonal = seasonal_trend_engine.detectar_contexto_sazonal()
+            diretriz_estacao = ctx_sazonal["diretriz_ia"]
+            evento_comercial = f"EVENTO ESPECIAL DO MÊS: {ctx_sazonal['evento_especial']}." if ctx_sazonal.get("evento_especial") else ""
+
             prompt_script = f"""
-            Você é a Alana Cruz, uma influenciadora carismática de moda feminina e achadinhos elegantes (@AlanaCruzOficial).
+            Você é a Alana Cruz (@AlanaCruzOficial), consultora de moda feminina e achadinhos de elegância atemporal.
+            CLIMATIZAÇÃO & ÉPOCA DO ANO:
+            {diretriz_estacao}
+            {evento_comercial}
+            SEU PÚBLICO PRINCIPAL (70%): Mulheres maduras (50 a 65+ anos) do Brasil e Portugal que amam se vestir bem, prezam por conforto, elegância discreta e peças que valorizam o corpo sem apertar.
             Crie um roteiro falado em português (pt-BR) de {tempo_desc} promovendo este item específico: '{titulo}'.
             CATEGORIA EXATA DO PRODUTO: {cat_detectada.upper()}.
             
             ATENÇÃO CRÍTICA SOBRE O PRODUTO:
-            - Se o item for uma BOLSA, fale estritamente sobre a BOLSA (espaço interno, alça, acabamento, elegância para compor qualquer look). NUNCA fale que é um vestido, roupa ou tecido!
-            - Se for um RELÓGIO ou JOIA, fale sobre o brilho, a sofisticação no pulso ou pescoço e a presença que ele impõe.
-            - Se for um SAPATO ou SALTO, fale sobre conforto, postura e poder ao caminhar.
-            - Se for VESTIDO ou CONJUNTO, fale sobre caimento e valorização do corpo.
+            - Se o item for CASACO, SOBRETUDO, TRICOT ou TRENCH COAT (INVERNO): fale sobre aquecimento aconchegante sem pesar no corpo, corte refinado, toque macio da lã/tecido e elegância impecável para os dias frios.
+            - Se for BOTA ou COTURNO: fale sobre proteção contra o frio, estabilidade do salto grosso/bloco, couro macio e elegância para caminhar o dia todo sem dores.
+            - Se for MEIA-CALÇA TÉRMICA FORRADA: destaque o efeito mágico de parecer translúcida e fininha na perna, mas por dentro ser forrada de pelúcia quentinha (o maior viral do inverno feminino).
+            - Se o item for uma BOLSA/CARTEIRA: fale estritamente sobre o espaço interno, divisórias, qualidade do couro, alça e como ela eleva qualquer look de inverno.
+            - Se for um RELÓGIO ou JOIA/SEMIJOIA: destaque como brilha sob golas altas, punhos de casaco e traz um toque de requinte.
+            - Se for SAPATO, SALTO ou SANDÁLIA: fale sobre conforto e estabilidade ao caminhar.
+            - Se for BELEZA, SKINCARE ou ACESSÓRIO VIRAL: fale sobre a praticidade no dia a dia.
+            - Se for VESTIDO ou ALFAIATARIA: fale sobre caimento impecável que valoriza o corpo com discrição.
             {detalhe_preco}
 
             ESTILO ESPECÍFICO DESTE VÍDEO:
@@ -386,21 +410,38 @@ def processar_video(task_id: str, titulo: str, tipo: str, uploaded_image_paths: 
             REGRAS OBRIGATÓRIAS (ENGAJAMENTO & VENDAS):
             - Comece nos primeiros 2 segundos com o gancho exato do estilo escolhido adaptado para {cat_detectada}.
             - Fale de forma natural, envolvente, feminina e empática (como uma amiga estilosa e sofisticada).
-            - CHAMADA DE AÇÃO COMPLETA NO FINAL (OBRIGATÓRIO):
-              Peça para a seguidora se INSCREVER no canal para não perder os achadinhos diários, SALVAR o vídeo para não esquecer de comprar e COMPARTILHAR com aquela amiga que ama andar elegante!
-              Indique com clareza: 'O link com cupom secreto tá liberado no primeiro comentário fixado e na bio! Corre antes que esgote!'
+            - CHAMADA DE AÇÃO ÚNICA, RÁPIDA E DIRETA (ÚLTIMOS 3 SEGUNDOS):
+              NUNCA peça várias coisas seguidas (não peça para curtir, salvar e compartilhar tudo junto).
+              Faça APENAS UMA ÚNICA chamada nos últimos 3 segundos:
+              'O link com desconto tá no primeiro comentário fixado! Já se inscreve para mais achadinhos!'
             - Retorne APENAS o texto falado puro, sem [Cena], sem [Alana], sem aspas.
             """
             try:
-                roteiro_gerado = llm.generate_script(prompt_script)
-                roteiro_limpo = re.sub(r'\[.*?\]', '', roteiro_gerado).strip()
-                roteiro_limpo = roteiro_limpo.replace('**', '').replace('##', '')
+                from app.services import dual_ai_editor
+                TASKS[task_id]["status"] = "Dupla IA (Gemini + Groq) redigindo roteiro exclusivo de moda..."
+                roteiro_limpo = dual_ai_editor.redigir_roteiro_dupla_ia(
+                    titulo=titulo,
+                    fatos_contexto=f"Produto: {titulo} | Categoria: {cat_detectada} | Preco: {preco_afiliado}",
+                    canal="moda",
+                    is_doc=False,
+                    prompt_base_gemini=prompt_script
+                )
                 if len(roteiro_limpo) > 40 and "Error:" not in roteiro_limpo and "503" not in roteiro_limpo:
                     roteiro = roteiro_limpo
                 else:
-                    raise ValueError("Resposta vazia da IA")
-            except Exception:
-                roteiro = copy_escolhida["fallback"]
+                    raise ValueError("Resposta vazia ou erro da Dupla IA")
+            except Exception as e_dual_moda:
+                logger.warning(f"Fallback da Dupla IA para moda: {e_dual_moda}")
+                try:
+                    roteiro_gerado = llm.generate_script(prompt_script)
+                    roteiro_limpo = re.sub(r'\[.*?\]', '', roteiro_gerado).strip()
+                    roteiro_limpo = roteiro_limpo.replace('**', '').replace('##', '')
+                    if len(roteiro_limpo) > 40 and "Error:" not in roteiro_limpo:
+                        roteiro = roteiro_limpo
+                    else:
+                        roteiro = copy_escolhida["fallback"]
+                except Exception:
+                    roteiro = copy_escolhida["fallback"]
         elif canal_tarefa == "fergil":
             TASKS[task_id]["status"] = f"Gerando Roteiro Executivo de Negócios ({'DOCUMENTÁRIO 16:9' if is_doc else 'SHORT 9:16'})..."
             voz_locutor = "pt-BR-AntonioNeural"
@@ -416,19 +457,23 @@ def processar_video(task_id: str, titulo: str, tipo: str, uploaded_image_paths: 
 
             if is_doc:
                 prompt_script = f"""
-                Você é o narrador executivo e estrategista do canal @FERGIL no YouTube.
-                Sua missão é produzir um DOCUMENTÁRIO EXECUTIVO DE ALTO IMPACTO (formato 16:9 widescreen, 250 a 350 palavras narradas) sobre: '{titulo}'.
+                Você é o narrador executivo, estrategista e professor de negócios do canal @FERGIL no YouTube.
+                Sua missão é produzir uma VERDADEIRA AULA EM FORMATO DE DOCUMENTÁRIO DE ALTO IMPACTO (formato 16:9 widescreen, 450 a 700 palavras narradas - 3 a 5 minutos) sobre: '{titulo}'.
                 {fatos_contexto_real}
 
-                DIRETRIZES DE LINGUAGEM, PROFUNDIDADE E RETENÇÃO EXECUTIVA:
-                1. TOM DE VOZ: Seguro, maduro, sóbrio e instigante (estilo Wall Street Journal, Bloomberg Originals e podcasts executivos de alto nível).
-                2. NÚMEROS E BASTIDORES: Use fatos e números reais de mercado, valuation, lucros, perdas ou reviravoltas corporativas.
-                3. ESTRUTURA EM 3 CAPÍTULOS DEFINIDOS:
-                   - CAPÍTULO 1: O DILEMA OU A QUEDA (60 a 80 palavras): Abra com a decisão de alto risco, a crise ou o número que abalou o mercado.
-                   - CAPÍTULO 2: OS BASTIDORES DO PODER (120 a 160 palavras): Discuta a estratégia silenciosa, as negociações secretas e a mentalidade dos líderes envolvidos.
-                   - CAPÍTULO 3: A LIÇÃO PARA QUEM CONSTRÓI E O CTA (70 a 90 palavras): Uma reflexão prática aplicável para negócios e carreira. Feche convidando para curtir o vídeo, se inscrever no canal @FERGIL e comentar a própria opinião sobre a estratégia.
+                DIRETRIZES DE LINGUAGEM, DIDÁTICA E VALOR EDUCACIONAL PARA GERAR SEGUIDORES FIÉIS:
+                1. NÍVEL DE ESTUDO DE CASO EXECUTIVO (ESTILO BLOOMBERG ORIGINALS / HARVARD BUSINESS REVIEW):
+                   - O espectador tem que sentir que está assistindo a uma mentoria ou aula de negócios gratuita.
+                   - Proibido resumo raso ou autoajuda de coach. Vá no coração da engenharia financeira, da estratégia de mercado e das decisões silenciosas dos bilionários e das big techs.
+                2. NÚMEROS, DADOS E BASTIDORES REAIS:
+                   - Cite valuations, faturamento, margens operacionais, rodadas de investimento (Série A/B/C) ou dados de mercado concretos.
+                3. ESTRUTURA COMPLETA EM 4 ATOS (MÍNIMO 450 PALAVRAS):
+                   - ATO 1: O DILEMA DE MERCADO OU O CHOQUE BILIONÁRIO (80 a 100 palavras): Abra com a ruptura, o risco de falência ou o movimento audacioso que chocou Wall Street e o mercado global.
+                   - ATO 2: A ENGENHARIA DA ESTRATÉGIA E OS BASTIDORES DO PODER (150 a 200 palavras): Como foi arquitetado o plano? Quais foram as jogadas contra a concorrência, acordos secretos ou pivôs tecnológicos?
+                   - ATO 3: A EXECUÇÃO E O IMPACTO FINANCEIRO REAL (150 a 200 palavras): Os números que vieram depois. O crescimento exponencial ou a perda colossal, dissecando as métricas e o posicionamento de mercado.
+                   - ATO 4: A LIÇÃO PRÁTICA PARA QUEM CONSTRÓI + CTA DE SEGUIDOR (80 a 100 palavras): O ensinamento estratégico que o espectador pode levar para a própria carreira, empresa ou finanças. Feche convidando com autoridade: 'Se você quer dominar as estratégias que constroem impérios e enriquecem nos bastidores, deixe o like e se inscreva no canal para acompanhar nossas próximas investigações executivas.'
 
-                Retorne APENAS o texto falado da narração pura, sem [Capítulo], sem [Narrador], sem emojis.
+                Retorne APENAS o texto falado da narração pura, sem [Ato], sem [Narrador], sem emojis.
                 """
             else:
                 prompt_script = f"""
@@ -439,7 +484,7 @@ def processar_video(task_id: str, titulo: str, tipo: str, uploaded_image_paths: 
                 ESTRUTURA OBRIGATÓRIA (65 A 80 PALAVRAS NARRADAS):
                 1. GANCHO EXPLOSIVO (0 a 4s): Abra com o número ou a perda/ganho impressionante sem rodeios. Ex: 'Larry Ellison acabou de perder 12 bilhões de dólares em menos de 24 horas...'
                 2. A LIÇÃO OCULTA DE NEGÓCIOS (5 a 22s): Explique com clareza a dinâmica por trás desse fato e o que as pessoas comuns não enxergam sobre volatilidade, poder e paciência estratégica.
-                3. LIÇÃO PARA A VIDA & CTA (23 a 33s): Uma frase marcante que o ouvinte possa aplicar hoje. Feche com: 'Se você quer dominar sua mente e seus negócios, inscreva-se na FERGIL e comente sua visão abaixo!'
+                3. LIÇÃO PARA A VIDA & CTA (23 a 33s): Uma frase marcante que o ouvinte possa aplicar hoje. Feche com: 'Se você quer dominar sua mente e seus negócios, se inscreva no canal e comente sua visão abaixo!'
                 
                 Retorne APENAS o texto da narração pura, sem marcações de cena, sem [Cena], sem emojis.
                 """
@@ -508,14 +553,25 @@ def processar_video(task_id: str, titulo: str, tipo: str, uploaded_image_paths: 
             if roteiro_existente and len(roteiro_existente.strip()) >= 30 and (status_tarefa in ("APROVADO PARA RENDERIZAÇÃO", "EM RENDERIZAÇÃO") or "permitido_com_aprovacao_humana" in str(bloqueio.get("status"))):
                 roteiro = roteiro_existente
                 logger.info(f"Utilizando roteiro aprovado formalmente da tarefa {task_id} para renderização.")
-            # Busca notícias e fatos reais em tempo real sobre o tema para injetar no prompt
+            # Busca notícias e inteligência de bastidores em tempo real com AGENT REACH SCOUT
             fatos_contexto_real = ""
             try:
+                from app.services import agent_reach_scout
+                scout_data = agent_reach_scout.enriquecer_pauta_com_agent_reach(tema=titulo, canal=canal_tarefa)
                 noticias_fatos = autoviral_brain.buscar_noticias_futebol_tempo_real(query=titulo, max_results=3)
+                linhas_fatos = []
+                if scout_data.get("pontos_de_vista"):
+                    linhas_fatos.append("AGENT REACH SCOUT (BASTIDORES E ÂNGULOS INVESTIGATIVOS):")
+                    for pv in scout_data["pontos_de_vista"]:
+                        linhas_fatos.append(f"- {pv}")
                 if noticias_fatos:
-                    fatos_contexto_real = "\nFATOS REAIS E NÚMEROS CONFIRMADOS DA IMPRENSA ESPORTIVA:\n" + "\n".join([f"- {n.get('titulo')}: {n.get('resumo', '')}" for n in noticias_fatos])
+                    linhas_fatos.append("IMPRENSA ESPORTIVA OFICIAL:")
+                    for n in noticias_fatos:
+                        linhas_fatos.append(f"- {n.get('titulo')}: {n.get('resumo', '')}")
+                if linhas_fatos:
+                    fatos_contexto_real = "\n" + "\n".join(linhas_fatos)
             except Exception as e_fatos:
-                logger.warning(f"Não foi possível buscar fatos externos: {e_fatos}")
+                logger.warning(f"Aviso Agent Reach / fatos externos: {e_fatos}")
 
             if gancho_escolhido and gancho_escolhido.strip().lower() != "auto" and not is_doc:
                 TASKS[task_id]["status"] = "Gerando Roteiro de 30-33s com Gancho Selecionado..."
@@ -543,15 +599,17 @@ def processar_video(task_id: str, titulo: str, tipo: str, uploaded_image_paths: 
                     {regras_aprendidas}
                     {aviso_anti_repeticao}
 
-                    DIRETRIZES DE LINGUAGEM POPULAR, PROFUNDIDADE E RETENÇÃO MÁXIMA (280 a 380 palavras narradas):
-                    1. LINGUAGEM SIMPLES E POPULAR: Proibido termos jurídicos rebuscados ou palavras difíceis que afastem o público comum! Fale a língua da arquibancada, como numa conversa empolgante entre amigos que amam futebol. Qualquer pessoa precisa entender imediatamente.
-                    2. FATOS E NÚMEROS QUE IMPRESSIONAM: Use os dados e fatos reais acima (gols, idades, marcas históricas). Nada de enrolação ou metáforas vagas.
-                    3. CHAMADA OBRIGATÓRIA PARA INSCRIÇÃO E LIKE: No final do vídeo, chame o público para curtir o vídeo, se inscrever no canal @FutebolInvisivelOficial e ativar o sininho para continuar atualizado e por dentro de tudo o que acontece no mundo da bola, e pergunte a opinião deles nos comentários!
+                    DIRETRIZES DE PROFUNDIDADE INVESTIGATIVA, NARRATIVA COMPLETA E DURAÇÃO (450 a 700 palavras narradas - 3 a 5 minutos):
+                    1. NARRATIVA COMPLETA E DETALHADA: Um documentário jamais pode ser um resumo rápido! Mergulhe na história completa: a origem da crise ou do auge, a trajetória do jogador, o esquema tático, a pressão da torcida e os milhões em jogo.
+                    2. FATOS, NÚMEROS E BASTIDORES CONCRETOS: Cite estatísticas reais, valores de salário ou transferência, data das partidas, escalações e declarações de vestiário.
+                    3. LINGUAGEM DE JORNALISMO INVESTIGATIVO ENVOLVENTE: Empolgante, sério e magnético, como um especial do Globo Esporte ou ESPN. Proibido enrolação vazia.
+                    4. CHAMADA FINAL ESTRATÉGICA: Nos últimos 20 segundos, pergunte a opinião do torcedor sobre o futuro do clube/jogador, convoque para deixar o like e se inscrever no canal para os dossiês semanais.
 
-                    ESTRUTURA EM 3 CAPÍTULOS CLAROS:
-                    - CAPÍTULO 1: O FATO EXPLOSIVO (50 a 70 palavras): Comece direto no lance que mudou tudo, citando os nomes e a façanha.
-                    - CAPÍTULO 2: OS BASTIDORES EXPLICADOS DE FORMA SIMPLES (140 a 180 palavras): Explique de forma clara o que aconteceu por trás das câmeras, quem brilhou, quem perdeu espaço e a reação do vestiário.
-                    - CAPÍTULO 3: OPINIÃO DO PÚBLICO E CHAMADA PARA O CANAL (80 a 110 palavras): Peça a opinião do torcedor nos comentários, peça para deixar o like e se inscrever no canal para não perder nada do futebol mundial.
+                    ESTRUTURA COMPLETA EM 4 ATOS (MÍNIMO 450 PALAVRAS):
+                    - ATO 1: O INCÊNDIO / O FATO EXPLOSIVO (80 a 100 palavras): Abra direto no acontecimento impactante, apresentando o protagonista e o choque no mercado.
+                    - ATO 2: AS RAÍZES E O CONFLITO NOS BASTIDORES (150 a 200 palavras): Como o clube ou jogador chegou a esse ponto? As tensões internas, os desentendimentos táticos e o que a grande mídia escondeu.
+                    - ATO 3: O IMPACTO EM CAMPO E OS NÚMEROS REAIS (150 a 200 palavras): As atuações recentes, gols, assistências, a reação dos companheiros e do treinador.
+                    - ATO 4: O VEREDITO, O FUTURO E DEBATE COM O PÚBLICO (70 a 100 palavras): O desfecho da investigação, pergunta reflexiva para os comentários e chamada de inscrição.
 
                     Retorne APENAS o texto falado da narração pura, sem [Cena], sem [Narrador], sem emojis.
                     """
@@ -579,9 +637,15 @@ def processar_video(task_id: str, titulo: str, tipo: str, uploaded_image_paths: 
                     Retorne APENAS a narração falada pura, sem marcações de cena, sem emojis.
                     """
                 try:
-                    roteiro_gerado = llm.generate_script(prompt_script)
-                    roteiro_limpo = re.sub(r'\[.*?\]', '', roteiro_gerado).strip()
-                    roteiro_limpo = roteiro_limpo.replace('**', '').replace('##', '')
+                    from app.services import dual_ai_editor
+                    TASKS[task_id]["status"] = "Debatendo e Auditando Roteiro entre as 2 IAs (Gemini + Groq)..."
+                    roteiro_limpo = dual_ai_editor.redigir_roteiro_dupla_ia(
+                        titulo=titulo,
+                        fatos_contexto=fatos_contexto_real,
+                        canal=canal_tarefa,
+                        is_doc=is_doc,
+                        prompt_base_gemini=prompt_script
+                    )
                     if len(roteiro_limpo) > 60 and "Error:" not in roteiro_limpo and "503" not in roteiro_limpo:
                         # Validação pós-geração do roteiro de Short no canal de futebol
                         if not is_doc:
@@ -597,11 +661,8 @@ def processar_video(task_id: str, titulo: str, tipo: str, uploaded_image_paths: 
                                     logger.warning(f"Roteiro curto gerado pela IA. Ajustando dinamicamente com base no tema...")
                                     roteiro = roteiro_limpo
                         else:
-                            # Se for documentário, assegurar que tenha corpo suficiente
-                            if len(roteiro_limpo.split()) < 180:
-                                roteiro = pegada_escolhida.get("fallback_doc", roteiro_limpo)
-                            else:
-                                roteiro = roteiro_limpo
+                            # Se for documentário, assegurar que tenha corpo substancial e NUNCA usar fallback de 30 segundos!
+                            roteiro = roteiro_limpo
                     else:
                         raise ValueError("Resposta da IA vazia, com erro de API ou sem dados factuais suficientes.")
                 except Exception as e_gen:
@@ -699,6 +760,20 @@ def processar_video(task_id: str, titulo: str, tipo: str, uploaded_image_paths: 
         sm = voice.azure_tts_v1(roteiro, voz_locutor, 1.0, audio_path)
         srt_content = sm.get_srt() if sm else ""
         
+        # Duração precisa do áudio gerado
+        audio_duration = 0.0
+        try:
+            p_probe = subprocess.run(
+                [FFPROBE, "-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", audio_path],
+                capture_output=True, text=True, check=True
+            )
+            audio_duration = float(p_probe.stdout.strip())
+        except Exception as e_dur:
+            logger.warning(f"Não foi possível obter duração exata do áudio com ffprobe: {e_dur}")
+            audio_duration = max(30.0, float(len(roteiro.split())) * 0.4)
+            
+        logger.info(f"Duração exata do áudio de narração detectada: {audio_duration:.2f}s")
+        
         clip_files = []
         clip_idx = 1
 
@@ -750,8 +825,7 @@ def processar_video(task_id: str, titulo: str, tipo: str, uploaded_image_paths: 
         if precisa_buscar_video:
             TASKS[task_id]["status"] = "Buscando Vídeos Reais no YouTube..."
             ydl_opts = {
-                'format': 'best[ext=mp4]/best',
-                'extractor_args': {'youtube': {'player_client': ['android', 'web']}},
+                'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/bestvideo+bestaudio/best',
                 'outtmpl': os.path.join(temp_dir, 'source_%(id)s.%(ext)s'),
                 'quiet': False,
                 'no_warnings': False,
@@ -759,13 +833,27 @@ def processar_video(task_id: str, titulo: str, tipo: str, uploaded_image_paths: 
                 'max_downloads': 1
             }
             
+            protagonista_detectado = ""
             if canal_tarefa == "fergil":
-                queries = [
-                    f"ytsearch5:{titulo} podcast business finance 4k",
-                    f"ytsearch5:{titulo} interview speech 1080p",
-                    f"ytsearch3:stock market business trading wall street 4k cinematic",
-                    f"ytsearch3:technology artificial intelligence futuristic 4k footage"
-                ]
+                # DIRETOR DE IMAGENS E B-ROLL VIA IA PARA O FERGIL:
+                from app.services import ai_visual_director
+                params_ia = ai_visual_director.gerar_parametros_busca_broll_ia(roteiro=roteiro, titulo=titulo, canal="fergil")
+                protagonista_detectado = params_ia.get("protagonista", "")
+                queries_ia = params_ia.get("queries", [])
+                
+                queries = []
+                for q_ia in queries_ia:
+                    queries.append(f"ytsearch5:{q_ia} business finance interview 4k")
+                
+                if not queries:
+                    palavras_fergil = [w for w in re.sub(r'[^a-zA-Z0-9áéíóúÁÉÍÓÚãõâêîôûçÇ]', ' ', titulo).split() if len(w) > 3][:3]
+                    termo_curto_fergil = " ".join(palavras_fergil) if palavras_fergil else "business finance"
+                    queries = [
+                        f"ytsearch5:{termo_curto_fergil} finance business 4k",
+                        f"ytsearch5:{termo_curto_fergil} interview 1080p",
+                        f"ytsearch4:stock market trading finance 4k footage",
+                        f"ytsearch4:business office technology corporate 4k"
+                    ]
             elif is_afiliado:
                 queries = [
                     f"ytsearch1:{titulo} try on haul review",
@@ -788,45 +876,68 @@ def processar_video(task_id: str, titulo: str, tipo: str, uploaded_image_paths: 
                 
                 # Se a notícia for sobre dirigentes ou pessoas externas ligadas a um clube (ex: Rafael Nadal no Real Madrid),
                 # o vídeo visual DEVE SER EXCLUSIVAMENTE lances de jogo e estádio do CLUBE DE FUTEBOL (ex: Real Madrid), NUNCA do tênis!
-                if clube_encontrado:
-                    busca_curta = f"{clube_encontrado} futebol"
-                else:
-                    termos_limpos = re.sub(
-                        r"\b(zoeira|zoado|polêmica|polemica|crise|contrato|milionário|milionario|bilhão|bilhao|verdade|segredo|escândalo|escandalo|fuga|treta|bastidores|farsa|julgamento|culpado|acusações|acusacoes|revela|tudo|sobre|adeus|finalissima|finalíssima|milhoes|milhões|de|do|da|no|na|em|com|por|que|como|o|a|os|as|e|vence|acaba|recupera|próximo|proximo|se|tornar|dirigente|presidente)\b",
-                        " ",
-                        titulo,
-                        flags=re.IGNORECASE,
-                    )
-                    termos_limpos = re.sub(r"\d+", " ", termos_limpos)
-                    termos_limpos = re.sub(r"\s+", " ", termos_limpos).strip()
-                    palavras_chave = [p for p in termos_limpos.split() if len(p) > 2][:3]
-                    busca_curta = (" ".join(palavras_chave) + " futebol") if palavras_chave else "futebol champions league"
+                # DIRETOR DE IMAGENS E B-ROLL VIA IA:
+                # A IA lê o roteiro narrado aprovado e gera os parâmetros de pesquisa exatos para baixar o protagonista!
+                from app.services import ai_visual_director
+                params_ia = ai_visual_director.gerar_parametros_busca_broll_ia(roteiro=roteiro, titulo=titulo, canal=canal_tarefa)
+                protagonista_detectado = params_ia.get("protagonista", "")
+                queries_ia = params_ia.get("queries", [])
                 
-                # REQUISITO EDITORIAL UNIVERSAL (QUALQUER CLUBE OU JOGADOR):
-                # Buscar estritamente lances e jogos de FUTEBOL da TEMPORADA ATUAL (2025/2026)
-                queries = [
-                    f"ytsearch10:{busca_curta} 2026 match highlights HD",
-                    f"ytsearch10:{busca_curta} 2025 match highlights HD 1080p",
-                    f"ytsearch8:{busca_curta} 2026 skills goals",
-                    f"ytsearch8:{busca_curta} season 2025 2026 HD",
-                ]
+                logger.info(f"Diretor Visual IA: Protagonista '{protagonista_detectado}' | Queries IA: {queries_ia}")
+                
+                queries = []
+                for q_ia in queries_ia:
+                    # Remove palavras que atraem broadcasts oficiais de federações (que dão Content ID automático)
+                    q_limpa = re.sub(r'\b(serie a|highlights|official|dazn|uefa)\b', '', q_ia, flags=re.IGNORECASE).strip()
+                    queries.append(f"ytsearch8:{q_limpa} fan view match HD")
+                    queries.append(f"ytsearch6:{q_limpa} skills goals HD")
+                    queries.append(f"ytsearch6:{q_limpa} comp HD")
+                
+                # Se a IA não retornou queries suficientes, adiciona fallback inteligente
+                if not queries:
+                    busca_curta = f"{protagonista_detectado or titulo} futebol"
+                    queries = [
+                        f"ytsearch8:{busca_curta} skills goals fan match HD",
+                        f"ytsearch6:{busca_curta} lances jogo comp HD"
+                    ]
             
             palavras_proibidas_youtuber = [
                 "react", "reagindo", "podcast", "cortes", "live", "opinião", "opiniao",
                 "debate", "vlog", "resenha", "entrevista", "#shorts", "shorts", "tiktok", "edit", "status",
                 "commercial", "comercial", "nike", "trailer", "movie", "filme", "noticia", "jornal",
-                # FILTRO RIGOROSO CONTRA OUTROS ESPORTES (TÊNIS, BASQUETE, ETC.)
-                "tennis", "tênis", "tenis", "atp", "roland garros", "wimbledon", "us open", "australian open",
-                "racket", "raquete", "nadal highlights tennis", "djokovic", "alcaraz", "federer", "nba", "basquete", "f1",
-                # FILTRO UNIVERSAL ANTI-VÍDEO ANTIGO / HISTÓRICO
-                "2010", "2011", "2012", "2013", "2014", "2015", "2016", "2017", "2018", "2019", "2020", "2021", "2022", "2023",
-                "nostalgia", "throwback", "anos atrás", "years ago", "antigo", "relembre", "era uma vez"
+                # BLOQUEIO ABSOLUTO DE OUTROS ESPORTES (VÔLEI, TÊNIS, BASQUETE, F1, ETC.)
+                "volei", "vôlei", "volleyball", "superliga", "saque", "bloqueio", "vnl", "fivb",
+                "tennis", "tênis", "tenis", "atp", "wta", "roland garros", "wimbledon", "us open", "australian open",
+                "racket", "raquete", "nadal highlights tennis", "djokovic", "alcaraz", "federer", "nba", "basquete", "basketball", "f1", "formula 1",
+                # FILTRO UNIVERSAL ANTI-VÍDEO ANTIGO (CONSIDERANDO ANO ATUAL: 2026 / TEMPORADA 2025/2026/2027)
+                "classic", "clássico", "retro", "retrô", "vintage", "histórico", "historico",
+                "1990", "1991", "1992", "1993", "1994", "1995", "1996", "1997", "1998", "1999",
+                "2000", "2001", "2002", "2003", "2004", "2005", "2006", "2007", "2008", "2009",
+                "2010", "2011", "2012", "2013", "2014", "2015", "2016", "2017", "2018", "2019",
+                "2020", "2021", "2022", "2023", "2024",
+                "nostalgia", "throwback", "anos atrás", "years ago", "antigo", "relembre", "era uma vez", "h/l"
             ]
-            # Exige que os vídeos baixados contenham referência explícita a futebol / lances de campo
-            termos_obrigatorios_futebol = ["futebol", "football", "soccer", "skills", "dribles", "goals", "gols", "highlights", "match", "vs", "moments", "jogadas", "champions", "laliga", "brasileirao", "2024", "2025", "2026"]
+            # CANAIS OFICIAIS DE TRANSMISSÃO BLOQUEADOS (CONTENT ID AUTOMÁTICO GLOBAL):
+            canais_oficiais_proibidos = [
+                "serie a", "serie a tim", "dazn", "cazétv", "cazetv", "tnt sports", "espn", "ge globo", 
+                "globo esporte", "sky sport", "bein sports", "premier league", "bundesliga", "laliga", 
+                "ligue 1", "uefa", "conmebol", "fifa", "cbs sports", "paramount+", "movistar"
+            ]
+            # Exige que o título do vídeo do YouTube tenha referência EXCLUSIVA de FUTEBOL real de campo:
+            termos_obrigatorios_futebol = [
+                "futebol", "football", "soccer", "real madrid", "barcelona", "flamengo", "palmeiras", 
+                "corinthians", "manchester city", "premier league", "champions league", "laliga", "serie a",
+                "brasileirao", "skills", "goals", "gols", "highlights", "lances", "jogadas", "baller",
+                "inter", "como", "milan", "juventus", "napoli", "roma", "arsenal", "liverpool"
+            ]
+            if protagonista_detectado:
+                termos_obrigatorios_futebol.extend([p.lower() for p in protagonista_detectado.split() if len(p) > 2])
+            # Adiciona também palavras-chave do próprio título da notícia para garantir match perfeito com o jogo citado
+            palavras_titulo = [w.lower() for w in re.sub(r'[^a-zA-ZÀ-ÿ]', ' ', titulo).split() if len(w) > 3]
+            termos_obrigatorios_futebol.extend(palavras_titulo)
             
             # Para documentários (16:9), buscar de 2 a 3 fontes de vídeos diferentes para variar os takes e não repetir lances
-            alvo_downloads = 2 if is_doc else 1
+            alvo_downloads = 3 if is_doc else 1
             for q in queries:
                 try:
                     with yt_dlp.YoutubeDL({**ydl_opts, "max_downloads": 3}) as ydl:
@@ -837,11 +948,37 @@ def processar_video(task_id: str, titulo: str, tipo: str, uploaded_image_paths: 
                                 continue
                             t_vid = (ent.get("title") or "").lower()
                             dur = ent.get("duration") or 0
-                            # PROIBIDO baixar Shorts (<75s) ou vídeos de youtubers (>900s): exigir vídeos de jogo horizontais (75s a 900s) sem legendas queimadas
-                            if any(bad in t_vid for bad in palavras_proibidas_youtuber) or dur < 75 or dur > 900:
+                            # Filtro específico por canal: no futebol bloqueia entrevista/podcast; no FERGIL entrevista e keynote de executivos são essenciais!
+                            palavras_bloqueadas = list(palavras_proibidas_youtuber)
+                            max_dur = 900
+                            if canal_tarefa == 'fergil':
+                                for ok_term in ["entrevista", "podcast", "debate"]:
+                                    if ok_term in palavras_bloqueadas:
+                                        palavras_bloqueadas.remove(ok_term)
+                                max_dur = 3600  # Permite keynotes e entrevistas oficiais de até 60 minutos
+                            
+                            if any(bad in t_vid for bad in palavras_bloqueadas) or dur < 45 or dur > max_dur:
                                 continue
-                            if not is_afiliado and not any(ok in t_vid for ok in termos_obrigatorios_futebol):
-                                continue
+                            if canal_tarefa == 'futebol':
+                                # REGRA CONTENT ID: Bloqueia canais oficiais de federações e emissoras que aplicam bloqueio global
+                                uploader_name = (ent.get("uploader") or ent.get("channel") or "").lower()
+                                if any(ofic in uploader_name for ofic in canais_oficiais_proibidos):
+                                    continue
+                                if any(ofic in t_vid for ofic in ["serie a", "dazn", "sky sport", "uefa champions", "official highlights"]):
+                                    # Se o próprio título do vídeo indicar broadcast oficial da liga/emissora
+                                    if "highlight" in t_vid or "full match" in t_vid:
+                                        continue
+                                # REGRA DE OURO DE ADERÊNCIA FOTOGRÁFICA:
+                                # Se o título da notícia citar adversários ou confronto específico (ex: 'Inter' e 'Como'),
+                                # o vídeo DEVE conter o nome do clube ou do jogo.
+                                # Proibido baixar jogos de outros adversários (ex: não baixar Barcelona se a notícia for Inter x Como)!
+                                adversarios_proibidos = ["barcelona", "real madrid", "fiorentina", "juventus", "roma", "milan", "napoli", "arsenal", "bayern"]
+                                t_tit_lower = titulo.lower()
+                                adv_indesejados = [adv for adv in adversarios_proibidos if adv not in t_tit_lower]
+                                if any(adv in t_vid for adv in adv_indesejados):
+                                    continue
+                                if not any(ok in t_vid for ok in termos_obrigatorios_futebol):
+                                    continue
                             vid_url = ent.get("webpage_url") or f"https://www.youtube.com/watch?v={ent.get('id')}"
                             try:
                                 ydl.download([vid_url])
@@ -868,19 +1005,23 @@ def processar_video(task_id: str, titulo: str, tipo: str, uploaded_image_paths: 
                 import urllib.parse
                 
                 # Nomes de personalidades comuns e entidades mencionadas no título e roteiro
+                # Detecção Dinâmica Universal de Protagonistas (Futebol e Fergil):
+                # Extrai automaticamente os nomes próprios do roteiro e título para buscar a foto oficial exata!
                 possiveis_nomes = [
-                    "Rafael Nadal", "Harry Kane", "Erling Haaland", "Raphinha", "Luis Suárez", "Vinicius Junior",
+                    "JJ Gabriel", "Rafael Nadal", "Harry Kane", "Erling Haaland", "Raphinha", "Luis Suárez", "Vinicius Junior",
                     "Lamine Yamal", "Carlo Ancelotti", "Kylian Mbappé", "Jude Bellingham", "Rodri", "Pep Guardiola",
-                    "Mikel Arteta", "Hansi Flick", "Robert Lewandowski", "Cristiano Ronaldo", "Lionel Messi", "Neymar"
+                    "Mikel Arteta", "Hansi Flick", "Robert Lewandowski", "Cristiano Ronaldo", "Lionel Messi", "Neymar",
+                    "Steve Jobs", "Warren Buffett", "Sam Altman", "Jensen Huang", "Elon Musk", "Florentino Pérez"
                 ]
                 texto_total = f"{titulo} {roteiro}".lower()
                 entidades_citadas = [nome for nome in possiveis_nomes if nome.lower() in texto_total]
                 
-                # Se não encontrou da lista padrão, extrai nomes próprios com duas palavras maiúsculas no título
-                if not entidades_citadas:
-                    cands = re.findall(r"\b([A-ZÁÉÍÓÚÂÊÔÃÕ][a-záéíóúâêôãõ]+(?:\s+[A-ZÁÉÍÓÚÂÊÔÃÕ][a-záéíóúâêôãõ]+))\b", titulo)
-                    for c_nome in cands:
-                        if c_nome.lower() not in ["real madrid", "aston villa", "champions league", "futebol brasileiro", "copa libertadores"]:
+                # Extração avançada de nomes próprios com 2 palavras maiúsculas diretamente do roteiro falado
+                cands = re.findall(r"\b([A-ZÁÉÍÓÚÂÊÔÃÕ][a-záéíóúâêôãõ]+(?:\s+[A-ZÁÉÍÓÚÂÊÔÃÕ][a-záéíóúâêôãõ]+))\b", f"{titulo} {roteiro}")
+                for c_nome in cands:
+                    c_low = c_nome.lower()
+                    if c_low not in ["real madrid", "manchester united", "aston villa", "champions league", "futebol brasileiro", "copa libertadores", "futebol invisível", "kid messi", "primeiro minuto"]:
+                        if c_nome not in entidades_citadas:
                             entidades_citadas.append(c_nome)
 
                 for nome_ent in entidades_citadas[:3]:
@@ -921,18 +1062,31 @@ def processar_video(task_id: str, titulo: str, tipo: str, uploaded_image_paths: 
         # DINAMISMO CINEMATOGRÁFICO DE CORTE PARA RETENÇÃO MÁXIMA
         # Em documentários investigativos: takes de 2.5s a 3.2s com cortes frequentes entre múltiplas jogadas atuais
         dur_take = 3.0 if is_doc else 3.2
-        offsets = [15, 30, 45, 60, 80, 100, 125, 150, 180, 210, 240, 270, 300] if is_doc else [10, 20, 30, 45, 60]
-        max_clips = 24 if is_doc else 8
+        # Para documentários, calcula dinamicamente o número de takes para cobrir 100% da duração da narração
+        target_clips_needed = int(audio_duration // dur_take) + 4 if audio_duration > 0 else (60 if is_doc else 12)
+        max_clips = target_clips_needed if is_doc else 8
+        logger.info(f"Meta de clipes para cobrir {audio_duration:.1f}s de narração: {max_clips} takes")
+        
+        # Gerar offsets amplos cobrindo até vídeos longos
+        if is_doc:
+            offsets = [15 + i * 18 for i in range(35)]  # Gera até 35 pontos de corte espaçados
+        else:
+            offsets = [10, 20, 30, 45, 60, 75, 90]
         
         for v in downloaded:
             for off in offsets:
                 c_out = os.path.join(temp_dir, f"clip_vid_{clip_idx:02d}.mp4")
                 if is_doc:
-                    # Enquadramento cinematográfico 16:9 limpo com zoom suave de 8% e leve espelhamento/crop para quebrar assinaturas de Content ID de transmissoras (UEFA/DAZN)
-                    vf_filter = "scale=1920:1080:force_original_aspect_ratio=increase,crop=1920*0.92:1080*0.92:(iw-1920*0.92)/2:(ih-1080*0.92)/2,scale=1920:1080,fps=30"
+                    # Enquadramento cinematográfico 16:9 anti-Content ID:
+                    # 1. Zoom de 14% e leve crop descentralizado
+                    # 2. Hflip (espelhamento horizontal) alternado a cada clipe para quebrar a assinatura visual do broadcast
+                    # 3. Micro-alteração de curva de cor (eq=contrast=1.05:brightness=0.01:saturation=1.06)
+                    # 4. Leve vinheta sutil cinematográfica
+                    hflip_str = ",hflip" if (clip_idx % 2 == 1) else ""
+                    vf_filter = f"scale=1920:1080:force_original_aspect_ratio=increase,crop=1920*0.86:1080*0.86:(iw-1920*0.86)/2:(ih-1080*0.86)/2,scale=1920:1080{hflip_str},eq=contrast=1.05:brightness=0.01:saturation=1.06,fps=30"
                 else:
                     # Crop central com zoom limpo de 12% para preencher 100% da tela 1080x1920 (sem faixas pretas e cortando marcas d'água de borda)
-                    vf_filter = "crop=ih*0.88*9/16:ih*0.88:(iw-ih*0.88*9/16)/2:ih*0.04,scale=1080:1920,fps=30"
+                    vf_filter = "crop=ih*0.88*9/16:ih*0.88:(iw-ih*0.88*9/16)/2:ih*0.04,scale=1080:1920,eq=contrast=1.05:saturation=1.06,fps=30"
                 
                 cmd = [
                     FFMPEG, "-y", "-ss", str(off), "-i", v, "-t", str(dur_take), "-an",
@@ -1020,9 +1174,28 @@ def processar_video(task_id: str, titulo: str, tipo: str, uploaded_image_paths: 
                 if os.path.exists(extra_c):
                     clip_files.append(extra_c)
             
+        # GARANTIA ABSOLUTA DE DURAÇÃO TOTAL DO VÍDEO >= ÁUDIO:
+        # Se os clipes extraídos somarem menos tempo do que a narração completa,
+        # repetimos os clipes na playlist concat.txt com rotação/ordem alternada até ultrapassar a duração do áudio!
+        estimated_video_duration = len(clip_files) * dur_take
+        playlist_clips = list(clip_files)
+        if audio_duration > 0 and estimated_video_duration < (audio_duration + 5.0):
+            logger.info(f"Clipes somam {estimated_video_duration:.1f}s para áudio de {audio_duration:.1f}s. Expandindo playlist concat.txt para garantir que a narração termine por completo...")
+            cycle_idx = 0
+            while len(playlist_clips) * dur_take < (audio_duration + 10.0):
+                # Pega da lista original invertendo ordem para evitar repetições contínuas óbvias
+                sub_pool = list(reversed(clip_files)) if (cycle_idx % 2 == 1) else list(clip_files)
+                for extra_p in sub_pool:
+                    playlist_clips.append(extra_p)
+                    if len(playlist_clips) * dur_take >= (audio_duration + 10.0):
+                        break
+                cycle_idx += 1
+            dur_total_est = len(playlist_clips) * dur_take
+            logger.info(f"Playlist expandida para {len(playlist_clips)} takes (~{dur_total_est:.1f}s).")
+
         concat_txt = os.path.join(temp_dir, "concat.txt")
         with open(concat_txt, "w", encoding="utf-8") as f:
-            for c in clip_files:
+            for c in playlist_clips:
                 f.write(f"file '{os.path.abspath(c).replace('\\', '/')}'\n")
                 
         concat_video = os.path.join(temp_dir, "combined.mp4")
@@ -1161,17 +1334,8 @@ def processar_video(task_id: str, titulo: str, tipo: str, uploaded_image_paths: 
                         "inteligencia artificial, podcasts executivos, wall street, bilionarios, "
                         "sam altman, steve jobs, elon musk, nvidia, tecnologia, documentario economia"
                     )
-                    post_desc = (
-                        f"💼 DOCUMENTÁRIO EXECUTIVO: {titulo}\n\n"
-                        f"Neste documentário exclusivo do canal FERGIL, analisamos a anatomia das grandes decisões corporativas, "
-                        f"a psicologia do dinheiro e as estratégias que moldam os impérios globais de tecnologia e inovação.\n\n"
-                        f"📌 CAPÍTULOS:\n"
-                        f"00:00 - O Dilema Estratégico\n"
-                        f"00:45 - Os Bastidores do Poder e Finanças\n"
-                        f"01:30 - A Lição para Construir Riqueza\n\n"
-                        f"🚀 Inscreva-se na @FERGIL e comente abaixo sua perspectiva sobre este caso!\n\n"
-                        f"#fergil #documentario #negocios #mentalidade #financas #inteligenciaartificial #sucesso"
-                    )
+                    from app.services import smart_metadata_cleaner
+                    post_desc = smart_metadata_cleaner.gerar_descricao_inteligente(titulo, canal="fergil", tipo="doc")
                     post_coment = "💼 Qual lição deste documentário você aplicará em seus negócios hoje? Comente abaixo e INSCREVA-SE na @FERGIL! 👇"
                 else:
                     post_titulo = f"{titulo[:70]} | FERGIL #Shorts"
@@ -1184,25 +1348,26 @@ def processar_video(task_id: str, titulo: str, tipo: str, uploaded_image_paths: 
                         f"💡 INSIGHT EXECUTIVO: {titulo}\n\n"
                         f"No canal FERGIL, decodificamos os bastidores dos maiores impérios de negócios, "
                         f"inteligência artificial, finanças e mentalidade estratégica do planeta.\n\n"
-                        f"🚀 Inscreva-se na @FERGIL para transformar sua visão e dominar seus negócios!\n\n"
+                        f"🎬 Assista ao DOCUMENTÁRIO COMPLETO e aprofundado sobre este caso no canal @FERGIL!\n\n"
+                        f"🚀 Inscreva-se na @FERGIL para dominar negócios, inteligência artificial e estratégias de riqueza!\n\n"
                         f"💬 O que você acha dessa decisão? Deixe sua visão nos comentários.\n\n"
                         f"#fergil #negocios #mentalidade #investimentos #inteligenciaartificial #shorts #sucesso"
                     )
                     post_coment = "🚀 Qual a sua visão sobre esta estratégia? Deixe seu comentário e INSCREVA-SE na @FERGIL! 👇💼"
             elif is_afiliado:
-                post_titulo = f"{titulo[:58]}: Puro Poder! ✨ | Alana Cruz #Shorts"
+                post_titulo = f"{titulo[:52]} ✨ Puro Charme! | Alana Cruz #Shorts"
                 tags_virais = (
                     f"Alana Cruz, {titulo[:35]}, moda feminina 2026, achadinhos aliexpress, vestido elegante, "
                     "vestido de festa, looks elegantes, roupa feminina barata, look old money, vestido que modela o corpo, "
                     "shein brasil, shopee achadinhos, provador de roupas, tendencia moda feminina, look do dia, shorts moda"
                 )
                 post_desc = (
-                    f"Meninas, olha essa perfeição: {titulo}{preco_txt}! Modela o corpo, caimento impecável e super confortável. 💕\n\n"
+                    f"✨ Achadinho Especial: {titulo}{preco_txt}! Modela o corpo com leveza, caimento impecável e conforto absoluto para o dia todo. 💕\n\n"
                     f"🛍️ Link oficial com desconto exclusivo:\n👉 {link_display}\n\n"
                     f"Se inscreva no canal Alana Cruz para mais achadinhos elegantes de moda feminina! ✨\n\n"
                     f"#modafeminina #vestidofesta #achadinhos #aliexpress #lookdodia #alanacruz #shorts"
                 )
-                post_coment = f"🛍️ Link oficial com desconto promocional{preco_txt}:\n👉 {link_display} 💕"
+                post_coment = f"🛍️ Meninas, o link oficial com cupom de desconto promocional está aqui:\n👉 {link_display} 💕"
             elif is_doc:
                 post_titulo = f"{titulo[:85]} | Documentário Investigativo"
                 tags_virais = (
@@ -1210,18 +1375,8 @@ def processar_video(task_id: str, titulo: str, tipo: str, uploaded_image_paths: 
                     "Ge Globo, ESPN Brasil, Dossiê Futebol, Bastidores do Futebol, Investigação Futebol, "
                     "Brasileirão, Champions League, Lamine Yamal, Vinicius Junior, Cristiano Ronaldo, Lionel Messi, Real Madrid, Barcelona"
                 )
-                post_desc = (
-                    f"🚨 DOSSIÊ EXCLUSIVO: {titulo}\n\n"
-                    f"Neste documentário investigativo do Futebol Invisível, revelamos a verdade oculta e os bastidores confidenciais "
-                    f"que as transmissões oficiais e as coletivas de imprensa não mostram.\n\n"
-                    f"📌 CAPÍTULOS DESTA INVESTIGAÇÃO:\n"
-                    f"00:00 - O Ponto de Tensão e a Crise Oculta\n"
-                    f"01:10 - O Contrato, Cláusulas e Valores Vazados\n"
-                    f"02:20 - A Prova Irrefutável e o Impacto no Elenco\n\n"
-                    f"🔔 Inscreva-se no canal @FutebolInvisivelOficial e ative as notificações para acompanhar todos os nossos dossiês investigativos semanais!\n\n"
-                    f"💬 Qual é a sua opinião sobre esta apuração? Deixe nos comentários abaixo!\n\n"
-                    f"#futebol #documentario #futebolinvisivel #futebolbrasileiro #championsleague #investigacao"
-                )
+                from app.services import smart_metadata_cleaner
+                post_desc = smart_metadata_cleaner.gerar_descricao_inteligente(titulo, canal="futebol", tipo="doc")
                 post_coment = "🔥 Deixe sua opinião sobre esta investigação nos comentários e INSCREVA-SE no canal para os próximos dossiês! 👇⚽"
             else:
                 post_titulo = f"{titulo[:62]}! #futebol #futebolbrasileiro #shorts"
@@ -1263,42 +1418,11 @@ def processar_video(task_id: str, titulo: str, tipo: str, uploaded_image_paths: 
                 if roteiro:
                     f_txt.write(f"🎙️ ROTEIRO NARRADO:\n{roteiro}\n")
             
-            # Gerar Capas/Thumbnails Promocionais Profissionais (Sem Legendas Queimadas)
-            try:
-                thumb_filename = f"CAPA_PROMO_{clean_name}_{task_id[:6]}.jpg"
-                thumb_path = os.path.join(target_dir, thumb_filename)
-                if is_afiliado:
-                    fotos_capa = list(uploaded_image_paths) if uploaded_image_paths else []
-                    if not fotos_capa and os.path.exists(concat_video):
-                        for idx_f, sec_f in enumerate([1, 4], 1):
-                            f_out = os.path.join(temp_dir, f"clean_frame_{idx_f}.jpg")
-                            subprocess.run([FFMPEG, "-y", "-ss", str(sec_f), "-i", concat_video, "-vframes", "1", "-q:v", "2", f_out], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                            if os.path.exists(f_out):
-                                fotos_capa.append(f_out)
-                    gerada = promo_cover.gerar_capa_promocional_moda(
-                        output_path=thumb_path,
-                        titulo_curto=titulo,
-                        image_paths=fotos_capa,
-                        preco=preco_afiliado,
-                        subtitulo_ia="MODELA A CINTURA • CAIMENTO PERFEITO",
-                    )
-                    if gerada and os.path.exists(gerada):
-                        TASKS[task_id]["thumb_path"] = gerada
-                        TASKS[task_id]["thumb_name"] = thumb_filename
-                else:
-                    frame_limpo = os.path.join(temp_dir, "clean_frame_fut.jpg")
-                    subprocess.run([FFMPEG, "-y", "-ss", "4", "-i", concat_video, "-vframes", "1", "-q:v", "2", frame_limpo], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                    gerada = promo_cover.gerar_capa_futebol_profissional(
-                        output_path=thumb_path,
-                        frame_image_path=frame_limpo,
-                        titulo=titulo,
-                        is_doc=is_doc,
-                    )
-                    if gerada and os.path.exists(gerada):
-                        TASKS[task_id]["thumb_path"] = gerada
-                        TASKS[task_id]["thumb_name"] = thumb_filename
-            except Exception as e_thumb:
-                logger.warning(f"Não foi possível gerar thumbnail promocional: {e_thumb}")
+            # CAPAS 100% DESATIVADAS (DIRETRIZ ESTRITA DO USUÁRIO):
+            # O sistema nunca gera imagens CAPA_PROMO nem envia capas para o YouTube.
+            # O proprietário fará o envio 100% manual das capas criadas por ele.
+            TASKS[task_id]["thumb_path"] = None
+            TASKS[task_id]["thumb_name"] = None
                 
             autoviral_brain.salvar_tarefa_db(task_id, TASKS[task_id])
             logger.success(f"{prefix} CONCLUÍDO: {final_path} | TXT: {txt_path}")
@@ -1527,6 +1651,9 @@ HTML_PAGE = """
             <button type="button" class="btn btn-warning btn-sm btn-studio-action fw-bold text-dark" id="btnExecutarAgoraAutopilot" onclick="executarAutopilotAgora()" title="Dispara a geração de 1 ciclo imediatamente sem esperar o cronômetro">
                 <i class="bi bi-lightning-charge-fill me-1"></i>⚡ Rodar Ciclo Agora
             </button>
+            <button type="button" class="btn btn-info btn-sm btn-studio-action fw-bold text-dark" id="btnAgendarTodos" onclick="agendarVideosTodosCanais()" title="Agenda imediatamente os vídeos prontos de TODOS os canais no YouTube nos horários de pico (hoje e próximos dias)">
+                <i class="bi bi-calendar-check-fill me-1"></i>📅 Agendar Vídeos (Todos Canais)
+            </button>
             <a href="https://youtube.com/@FutebolInvisivelOficial" target="_blank" class="btn btn-outline-warning btn-sm btn-studio-action text-nowrap">
                 <i class="bi bi-youtube me-1"></i>Canal Futebol
             </a>
@@ -1558,6 +1685,9 @@ HTML_PAGE = """
                     </button>
                     <button type="button" class="btn btn-outline-info btn-sm btn-studio-action fw-bold" id="btnAuditarComentarios" onclick="auditarEAutoFixarComentarios()">
                         <i class="bi bi-pin-angle-fill me-1"></i>📌 Auto-Fixar Comentários nos Vídeos
+                    </button>
+                    <button type="button" class="btn btn-danger btn-sm btn-studio-action fw-bold text-white shadow-sm" id="btnVarrerCorrigirCanais" onclick="varrerECorrigirCanais()" title="Varre todos os canais, audita e higieniza descrições removendo minutagens falsas, links duplicados e marcadores técnicos">
+                        <i class="bi bi-shield-fill-check me-1"></i>🧹 Varrer & Corrigir Descrições (Todos Canais)
                     </button>
                 </div>
             </div>
@@ -1879,6 +2009,10 @@ HTML_PAGE = """
                     </div>
 
                     <div class="d-flex gap-1 flex-wrap mb-2">
+                        <button type="button" class="btn btn-outline-info btn-sm py-0 px-2 fw-bold" style="font-size:11px;" onclick="setAliBusca('casaco sobretudo feminino la batida elegante')">❄️ Casacos & Sobretudos</button>
+                        <button type="button" class="btn btn-outline-info btn-sm py-0 px-2 fw-bold" style="font-size:11px;" onclick="setAliBusca('meia calca termica feminina translucida forrada')">❄️ Meia Térmica Viral</button>
+                        <button type="button" class="btn btn-outline-info btn-sm py-0 px-2 fw-bold" style="font-size:11px;" onclick="setAliBusca('bota feminina cano curto couro salto grosso')">👢 Botas Inverno</button>
+                        <button type="button" class="btn btn-outline-warning btn-sm py-0 px-2" style="font-size:11px;" onclick="setAliBusca('sueter feminino gola alta cashmere trico')">🧣 Tricot & Cashmere</button>
                         <button type="button" class="btn btn-outline-warning btn-sm py-0 px-2" style="font-size:11px;" onclick="setAliBusca('vestido cetim festa luxo elegante')">👗 Vestidos Festa</button>
                         <button type="button" class="btn btn-outline-warning btn-sm py-0 px-2" style="font-size:11px;" onclick="setAliBusca('conjunto feminino alfaiataria elegante')">✨ Alfaiataria</button>
                         <button type="button" class="btn btn-outline-warning btn-sm py-0 px-2" style="font-size:11px;" onclick="setAliBusca('bolsa feminina couro luxo ombro')">👜 Bolsas Luxo</button>
@@ -1912,7 +2046,7 @@ HTML_PAGE = """
         </div>
     </main>
 
-    <script src="/app_studio_client.js?v=2.0"></script>
+    <script src="/app_studio_client.js?v=2.2"></script>
     <!-- MODAL DE PRÉ-VISUALIZAÇÃO DO HISTÓRICO -->
     <div class="modal fade" id="modalPlayerHistorico" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered modal-lg">
@@ -2057,12 +2191,9 @@ def api_upload_video_youtube(task_id: str, privacy: str = "unlisted"):
     if not tags_list:
         tags_list = ["shorts", "viral"]
     
-    # Descobrir capa (thumbnail) se houver
+    # BLOQUEIO ABSOLUTO DE CAPAS AUTOMÁTICAS (DIRETRIZ DO PROPRIETÁRIO):
+    # O sistema NUNCA anexa nem envia capas: o controle é 100% manual do usuário.
     thumbnail_path = None
-    if file_path.endswith(".mp4"):
-        possivel_thumb = file_path.replace(".mp4", ".jpg")
-        if os.path.exists(possivel_thumb):
-            thumbnail_path = possivel_thumb
             
     # 1. VALIDAÇÃO DE INTEGRIDADE DO ARQUIVO MP4 (Existe, > 1 MB, SHA-256)
     if not os.path.exists(file_path):
@@ -2405,6 +2536,46 @@ def api_autopilot_alternar(acao: str = "iniciar"):
         return autopilot_manager.iniciar_autopiloto()
     else:
         return autopilot_manager.parar_autopiloto()
+
+@app.post("/api/canais/varrer_e_corrigir")
+def api_canais_varrer_e_corrigir(background_tasks: BackgroundTasks, canais: str = "todos"):
+    """
+    Aciona o robô de inspeção e correção em lote para varrer os canais e
+    higienizar descrições, títulos, tags e remover vazamentos ([task_id:...], links duplicados, minutagens falsas).
+    """
+    from app.services import channel_cleaner_bot
+    lista_canais = ["futebol", "fergil", "moda"] if canais == "todos" else [c.strip() for c in canais.split(",") if c.strip()]
+    
+    def _rodar_faxina():
+        logger.info(f"Iniciando Robô Guardião para varrer e corrigir canais: {lista_canais}")
+        res = channel_cleaner_bot.varrer_e_corrigir_metadados_canais(canais=lista_canais, dry_run=False, limite_videos=30)
+        logger.success(f"Robô Guardião concluiu! Analisados: {res['total_analisados']} | Corrigidos: {res['videos_corrigidos']}")
+
+    background_tasks.add_task(_rodar_faxina)
+    return {
+        "status": "ok",
+        "mensagem": f"Robô Guardião acionado com sucesso! Varrendo os canais ({', '.join(lista_canais)}) em segundo plano para corrigir descrições e metadados."
+    }
+
+@app.post("/api/agendador/executar_todos")
+def api_agendador_executar_todos(background_tasks: BackgroundTasks):
+    from app.services import smart_pre_scheduler, channel_sanitizer
+    def _rodar_agendamento_global():
+        # 1. FAXINA IMEDIATA: Exclui do YouTube qualquer vídeo com Bloqueio de Direitos Autorais (Content ID) ou com erro
+        for canal in ["futebol", "fergil", "moda"]:
+            try:
+                channel_sanitizer.sanitizar_canal_youtube(canal, dry_run=False)
+            except Exception as e_san:
+                logger.warning(f"Aviso na sanitização de {canal}: {e_san}")
+                
+        # 2. Agendamento dos vídeos 100% limpos e aprovados
+        for canal in ["futebol", "fergil", "moda"]:
+            try:
+                smart_pre_scheduler.executar_fluxo_auto_agendamento(canal)
+            except Exception as e:
+                logger.error(f"Erro no agendador global para {canal}: {e}")
+    background_tasks.add_task(_rodar_agendamento_global)
+    return {"status": "ok", "mensagem": "Faxina de vídeos bloqueados (Content ID) e agendamento inteligente disparados para TODOS os canais!"}
 
 @app.post("/api/autopilot/executar_agora")
 def api_autopilot_executar_agora(background_tasks: BackgroundTasks):
