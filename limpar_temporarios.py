@@ -1,48 +1,65 @@
+"""
+Script de Limpeza Automática do Sistema AutoViral
+Liberta espaço em disco eliminando caches, temporários e lixos sem afetar código ou arquivos vitais.
+"""
+
 import os
 import shutil
-import glob
 from loguru import logger
 
-def limpar_materiais_temporarios(manter_apenas_videos_finais=True):
-    """
-    Remove imagens temporárias, recortes, clipes intermediários e caches
-    de renderização em 'storage/tasks/', preservando apenas os vídeos finais
-    prontos em 'canais/canal_01_futebol_invisivel/videos_prontos/'.
-    """
-    logger.info("Iniciando limpeza de memória e arquivos temporários...")
-    
-    # 1. Pastas de materiais (fotos e clips temporários)
-    materiais_dir = os.path.join("canais", "canal_01_futebol_invisivel", "materiais_fotos_videos")
-    if os.path.exists(materiais_dir):
-        tamanho_liberado = 0
-        for root, dirs, files in os.walk(materiais_dir):
-            for f in files:
-                fp = os.path.join(root, f)
-                try:
-                    tamanho_liberado += os.path.getsize(fp)
-                except Exception:
-                    pass
+def executar_faxina_disco():
+    total_libertado = 0
+
+    def apagar(caminho):
+        nonlocal total_libertado
+        if not os.path.exists(caminho):
+            return
         try:
-            shutil.rmtree(materiais_dir)
-            os.makedirs(materiais_dir, exist_ok=True)
-            logger.success(f"Diretório de materiais temporários limpo! Espaço liberado: ~{tamanho_liberado / (1024*1024):.2f} MB")
+            if os.path.isfile(caminho) or os.path.islink(caminho):
+                sz = os.path.getsize(caminho)
+                os.remove(caminho)
+                total_libertado += sz
+            elif os.path.isdir(caminho):
+                sz = sum(os.path.getsize(os.path.join(r, f)) for r, _, fs in os.walk(caminho) for f in fs if os.path.isfile(os.path.join(r, f)))
+                shutil.rmtree(caminho, ignore_errors=True)
+                total_libertado += sz
         except Exception as e:
-            logger.warning(f"Erro ao limpar materiais_fotos_videos: {e}")
+            logger.debug(f"Ignorado {caminho}: {e}")
 
-    # 2. Pasta de tarefas intermediárias do MoneyPrinterTurbo (storage/tasks)
-    storage_tasks = os.path.join("storage", "tasks")
-    if os.path.exists(storage_tasks):
-        tasks = glob.glob(os.path.join(storage_tasks, "*"))
-        tasks_liberados = 0
-        for task in tasks:
-            try:
-                shutil.rmtree(task)
-                tasks_liberados += 1
-            except Exception:
-                pass
-        logger.success(f"Limpeza de storage/tasks concluída: {tasks_liberados} tarefas intermediárias apagadas!")
+    logger.info("Iniciando limpeza de temporários e caches...")
 
-    logger.success("Limpeza concluída! Apenas os vídeos finais em 'videos_prontos/' foram preservados.")
+    # 1. Pastas temporarias de render/scraping do projeto
+    pastas_temp = [
+        "temp_spy_thumbs",
+        "temp_web_build_2f385a3e",
+        "temp",
+        "tmp"
+    ]
+    for p in pastas_temp:
+        apagar(p)
+
+    # 2. Caches do Python / Pip / Puppeteer / HuggingFace
+    apagar(os.path.expanduser("~/AppData/Local/pip/cache"))
+    apagar(os.path.expanduser("~/.cache/puppeteer"))
+    apagar(os.path.expanduser("~/.cache/hyperframes"))
+
+    # 3. Temp do Windows
+    temp_win = os.environ.get("TEMP")
+    if temp_win and os.path.exists(temp_win):
+        for item in os.listdir(temp_win):
+            apagar(os.path.join(temp_win, item))
+
+    # 4. Arquivos .tmp, .bak soltos
+    for root, dirs, files in os.walk("."):
+        if any(ign in root for ign in [".git", "venv", ".venv"]):
+            continue
+        for f in files:
+            if f.endswith((".tmp", ".bak")):
+                apagar(os.path.join(root, f))
+
+    mb_livre = total_libertado / (1024 * 1024)
+    total, used, free = shutil.disk_usage("C:")
+    logger.success(f"Faxina concluída! Libertados: {mb_livre:.2f} MB | Espaço livre no Disco C: {free/(1024**3):.2f} GB")
 
 if __name__ == "__main__":
-    limpar_materiais_temporarios()
+    executar_faxina_disco()
