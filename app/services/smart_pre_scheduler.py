@@ -228,10 +228,81 @@ def agendar_video_no_youtube(video_id: str, publish_at_iso: str, canal: str = "f
             logger.error(f"Erro ao agendar vídeo {video_id} no YouTube: {e}")
         return False
 
+def obter_videos_unlisted_reais_canal(canal: str = "futebol", limite: int = 50) -> List[Dict]:
+    """
+    Varre os vídeos do canal no YouTube e retorna os que estão como 'unlisted'
+    e ainda NÃO têm 'publishAt' (ou seja, ainda não foram agendados).
+    Garante que qualquer vídeo órfão ou antigo também entre na esteira de agendamento.
+    """
+    try:
+        yt = youtube_uploader.get_authenticated_service(canal)
+        ch_resp = yt.channels().list(part="contentDetails", mine=True).execute()
+        if not ch_resp.get("items"):
+            return []
+        uploads_id = ch_resp["items"][0]["contentDetails"]["relatedPlaylists"]["uploads"]
+        
+        itens = []
+        next_page = None
+        while len(itens) < limite:
+            res = yt.playlistItems().list(
+                part="snippet,contentDetails",
+                playlistId=uploads_id,
+                maxResults=min(50, limite - len(itens)),
+                pageToken=next_page
+            ).execute()
+            novos = res.get("items", [])
+            if not novos:
+                break
+            itens.extend(novos)
+            next_page = res.get("nextPageToken")
+            if not next_page:
+                break
+                
+        if not itens:
+            return []
+            
+        vids = [it["contentDetails"]["videoId"] for it in itens]
+        v_detalhes = {}
+        for i in range(0, len(vids), 50):
+            chunk = vids[i:i+50]
+            v_res = yt.videos().list(part="status,snippet", id=",".join(chunk)).execute()
+            for v in v_res.get("items", []):
+                v_detalhes[v["id"]] = v
+                
+        resultado = []
+        for v_id in vids:
+            v_info = v_detalhes.get(v_id)
+            if not v_info:
+                continue
+            status_obj = v_info.get("status", {})
+            privacy = status_obj.get("privacyStatus", "")
+            publish_at = status_obj.get("publishAt")
+            
+            # Pega apenas vídeos Não Listados que AINDA NÃO têm agendamento (publishAt)
+            if privacy == "unlisted" and not publish_at:
+                snippet = v_info.get("snippet", {})
+                titulo = snippet.get("title", "")
+                is_short = "#shorts" in titulo.lower() or "#shorts" in snippet.get("description", "").lower()
+                tipo = "short" if is_short else "doc"
+                resultado.append({
+                    "task_id": f"yt_{v_id}",
+                    "canal": canal,
+                    "tipo": tipo,
+                    "titulo": titulo,
+                    "youtube_video_id": v_id,
+                    "criado_em": snippet.get("publishedAt", "")
+                })
+        return resultado
+    except Exception as e:
+        logger.warning(f"Erro ao buscar vídeos unlisted reais no YouTube para {canal}: {e}")
+        return []
+
 def executar_fluxo_auto_agendamento(canal: str = "futebol") -> List[Dict]:
     """
     Fluxo Completo Inteligente:
-    1. Busca todos os vídeos já gerados e postados como UNLISTED que ainda não foram agendados/publicados.
+    1. Busca todos os vídeos unlisted pendentes:
+       - Primeiro do banco de dados (vídeos gerados pelo estúdio).
+       - Complementa com vídeos 'unlisted' reais do YouTube que estejam sem agendamento.
     2. Identifica os próximos slots de pico disponíveis (hoje ou próximos dias).
     3. Audita metadados e envia comando de agendamento automático para o YouTube.
     4. Registra no banco de dados e notifica no Telegram.
@@ -241,7 +312,7 @@ def executar_fluxo_auto_agendamento(canal: str = "futebol") -> List[Dict]:
     conn = sqlite3.connect(DB_PATH)
     cur = conn.cursor()
     
-    # Busca vídeos unlisted que ainda não foram publicados e nem agendados
+    # 1. Busca vídeos unlisted registrados no banco de dados
     cur.execute('''
         SELECT task_id, canal, tipo, titulo, youtube_video_id, criado_em 
         FROM videos_gerados 
@@ -252,8 +323,29 @@ def executar_fluxo_auto_agendamento(canal: str = "futebol") -> List[Dict]:
           AND youtube_video_id NOT IN (SELECT video_id FROM agendamentos_youtube WHERE status = 'AGENDADO')
         ORDER BY rowid ASC
     ''', (canal,))
-    videos_prontos = cur.fetchall()
+    linhas_db = cur.fetchall()
     conn.close()
+    
+    videos_prontos = []
+    ids_vistos = set()
+    for row in linhas_db:
+        t_id, c_nome, tipo, tit, vid, cri = row
+        ids_vistos.add(vid)
+        videos_prontos.append(row)
+        
+    # 2. Complementa com os vídeos unlisted que estão no canal no YouTube mas que não estavam no banco
+    videos_reais = obter_videos_unlisted_reais_canal(canal)
+    for vr in videos_reais:
+        if vr["youtube_video_id"] not in ids_vistos:
+            ids_vistos.add(vr["youtube_video_id"])
+            videos_prontos.append((
+                vr["task_id"],
+                canal,
+                vr["tipo"],
+                vr["titulo"],
+                vr["youtube_video_id"],
+                vr["criado_em"]
+            ))
     
     if not videos_prontos:
         logger.info(f"[{canal.upper()}] Nenhum vídeo pendente para agendamento.")
