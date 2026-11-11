@@ -296,7 +296,9 @@ def escoar_fila_aguardando_upload(canal: str = "fergil") -> dict:
     cur = conn.cursor()
     cur.execute("""
         SELECT * FROM videos_gerados 
-        WHERE canal = ? AND status = 'RENDERIZADO_AGUARDANDO_UPLOAD'
+        WHERE canal = ? 
+          AND (status = 'RENDERIZADO_AGUARDANDO_UPLOAD' OR (status = 'CONCLUÍDO' AND (youtube_video_id IS NULL OR youtube_video_id = '')))
+          AND file_path IS NOT NULL AND file_path != ''
         ORDER BY criado_em ASC
     """, (canal,))
     pendentes = [dict(r) for r in cur.fetchall()]
