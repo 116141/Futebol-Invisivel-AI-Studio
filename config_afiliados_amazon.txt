@@ -1,0 +1,25 @@
+# ========================================================
+# DADOS DE AFILIADO & RECEBIMENTO - SISTEMA AUTOVIRAL
+# Data de Atualização: 11/11/2026
+# ========================================================
+
+--- IDENTIFICAÇÃO DE AFILIADO AMAZON ---
+Titular: Edmilson Gil Carvalho Fernandes
+Email: fernandes.edmilson.gi@gmail.com
+Store ID: edmilsonferg
+Unique Associate ID (Tag de Rastreio): edmilsonferg-20
+Portal: https://affiliate-program.amazon.com/
+
+--- DADOS BANCÁRIOS PAYONEER (CONTA RECEBIMENTO USD) ---
+Nome do Beneficiário: Edmilson Gil Carvalho Fernandes
+Nome do Banco: Citibank
+Endereço do Banco: 111 Wall Street, New York, NY 10043, USA
+ABA / Routing Number: 031100209
+Código SWIFT: CITIUS33
+Número da Conta (Account Number): 70580770002346138
+Tipo de Conta: CHECKING (Conta Corrente)
+
+--- CANAIS VINCULADOS AO ECOSSISTEMA ---
+1. Futebol Invisível
+2. FERGIL
+3. Alana Cruz (Moda)

@@ -1,6 +1,7 @@
 import re
 from loguru import logger
 from app.services import youtube_uploader
+from app.services import amazon_affiliate
 
 def extrair_link_produto_ou_afiliado(descricao: str) -> str:
     """Extrai links do AliExpress ou encurtados da descrição do vídeo."""
@@ -14,15 +15,27 @@ def extrair_link_produto_ou_afiliado(descricao: str) -> str:
     return links_gerais[0].rstrip('.,;)') if links_gerais else ""
 
 def gerar_texto_comentario_otimizado(titulo: str, descricao: str, canal: str = "moda") -> str:
-    """Gera comentário de alta conversão ou gancho de debate."""
+    """Gera comentário de alta conversão ou gancho de debate combinando pergunta e link de afiliado Amazon."""
+    # Se já houver link de produto na descrição (ex: moda/aliexpress), prioriza
     link = extrair_link_produto_ou_afiliado(descricao)
-    if canal == "moda":
+    canal_norm = canal.lower()
+
+    if canal_norm == "moda":
         if link:
             return f"✨ Meninas, o link oficial deste modelo está aqui antes que esgote: {link}\n\n(Dica: confira o cupom de primeira compra!) 💖"
         else:
+            coment_amz = amazon_affiliate.gerar_comentario_afiliado_amazon(titulo, "moda")
+            if coment_amz:
+                return coment_amz
             return "✨ Meninas, qual cor ou tamanho vocês gostariam de ver no próximo vídeo? Deixem aqui nos comentários! 💖"
-    elif canal == "fergil":
-        return f"💼 Qual a sua visão estratégica sobre este caso? Deixe sua análise nos comentários e inscreva-se na @FERGIL para dominar seus negócios! 👇🚀"
+    
+    # Canais FERGIL e FUTEBOL: Usa o motor inteligente de afiliados da Amazon
+    coment_amz = amazon_affiliate.gerar_comentario_afiliado_amazon(titulo, canal)
+    if coment_amz:
+        return coment_amz
+
+    if "fergil" in canal_norm:
+        return "💼 Qual a sua visão estratégica sobre este caso? Deixe sua análise nos comentários e inscreva-se na @FERGIL para dominar seus negócios! 👇🚀"
     else:
         tit_lower = titulo.lower()
         if "vini" in tit_lower or "vinicius" in tit_lower:
