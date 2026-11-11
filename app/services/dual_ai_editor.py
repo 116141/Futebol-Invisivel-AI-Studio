@@ -124,16 +124,16 @@ def auditar_roteiro_com_groq(roteiro: str, titulo: str, canal: str, is_doc: bool
             """
         else:
             regras_canal = """
-            - FORMATO SHORT EXECUTIVO (9:16): Duração cirúrgica de 30 a 35 segundos (65 a 80 palavras).
+            - FORMATO SHORT EXECUTIVO (9:16): Duração cirúrgica de 25 a 29 segundos (55 a 65 palavras narradas).
             - Empresa, figura executiva ou cifra bilionária DEVE ser dita nos primeiros 4 segundos.
             - Sem autoajuda barata; foco em inteligência de negócios, finanças, tecnologia e mentalidade estratégica com números.
-            - Lição afiada que faz o espectador querer se inscrever para receber essa pílula diária de negócios.
+            - FECHO CIRCULAR / LOOP INFINITO: Terminar emendando com a premissa de abertura. PROIBIDO pedidos de inscrição, likes ou encerramentos lentos.
             """
     elif canal == "moda":
         regras_canal = """
-        - Duração ágil (20 a 25s, máx 55 palavras).
-        - Foco em elegância madura, conforto e caimento.
-        - Apenas UMA chamada única nos últimos 3 segundos.
+        - Duração ágil e viciante (20 a 24 segundos, 45 a 52 palavras).
+        - Foco em elegância madura, caimento perfeito e valor percebido da peça.
+        - Sem despedidas longas: apenas a frase final natural apontando para o link oficial nos comentários fixados (máx 3 segundos).
         """
 
     prompt_auditoria = f"""

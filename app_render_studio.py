@@ -478,13 +478,14 @@ def processar_video(task_id: str, titulo: str, tipo: str, uploaded_image_paths: 
             else:
                 prompt_script = f"""
                 Você é o narrador do canal @FERGIL no YouTube Shorts (Nicho: Negócios, Dinheiro, Inteligência Artificial e Mentalidade de Sucesso).
-                Crie um roteiro de SHORT DIRETO AO PONTO, COM LINGUAGEM CIRÚRGICA, PROFUNDA E IMPACTANTE de 30 a 35 segundos sobre: '{titulo}'.
+                Crie um roteiro de SHORT HIPNOTIZANTE, DIRETO AO PONTO, COM LINGUAGEM CIRÚRGICA E LOOP INFINITO de 25 a 29 segundos sobre: '{titulo}'.
                 {fatos_contexto_real}
                 
-                ESTRUTURA OBRIGATÓRIA (65 A 80 PALAVRAS NARRADAS):
+                ESTRUTURA OBRIGATÓRIA (55 A 65 PALAVRAS NARRADAS - RETENÇÃO MÁXIMA):
                 1. GANCHO EXPLOSIVO (0 a 4s): Abra com o número ou a perda/ganho impressionante sem rodeios. Ex: 'Larry Ellison acabou de perder 12 bilhões de dólares em menos de 24 horas...'
-                2. A LIÇÃO OCULTA DE NEGÓCIOS (5 a 22s): Explique com clareza a dinâmica por trás desse fato e o que as pessoas comuns não enxergam sobre volatilidade, poder e paciência estratégica.
-                3. LIÇÃO PARA A VIDA & CTA (23 a 33s): Uma frase marcante que o ouvinte possa aplicar hoje. Feche com: 'Se você quer dominar sua mente e seus negócios, se inscreva no canal e comente sua visão abaixo!'
+                2. A LIÇÃO OCULTA DE NEGÓCIOS (5 a 20s): Explique com clareza a dinâmica por trás desse fato e o que as pessoas comuns não enxergam sobre volatilidade, poder e paciência estratégica.
+                3. FECHO CIRCULAR / LOOP INFINITO (21 a 27s): Uma reflexão afiada que conecte imediatamente de volta com a premissa inicial do vídeo. 
+                PROIBIDO despedidas como 'se inscreva', 'deixe o like' ou 'comente abaixo'. O vídeo deve terminar com impacto imediato.
                 
                 Retorne APENAS o texto da narração pura, sem marcações de cena, sem [Cena], sem emojis.
                 """
