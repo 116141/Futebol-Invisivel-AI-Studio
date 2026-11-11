@@ -973,9 +973,14 @@ def processar_video(task_id: str, titulo: str, tipo: str, uploaded_image_paths: 
                                 # Se o título da notícia citar adversários ou confronto específico (ex: 'Inter' e 'Como'),
                                 # o vídeo DEVE conter o nome do clube ou do jogo.
                                 # Proibido baixar jogos de outros adversários (ex: não baixar Barcelona se a notícia for Inter x Como)!
+                                # MAS se a notícia for sobre um jogador (ex: Mbappé) e citar seu clube atual ou seleção, NÃO bloqueia o clube dele!
                                 adversarios_proibidos = ["barcelona", "real madrid", "fiorentina", "juventus", "roma", "milan", "napoli", "arsenal", "bayern"]
                                 t_tit_lower = titulo.lower()
-                                adv_indesejados = [adv for adv in adversarios_proibidos if adv not in t_tit_lower]
+                                rot_lower = roteiro.lower()
+                                adv_indesejados = [adv for adv in adversarios_proibidos if adv not in t_tit_lower and adv not in rot_lower]
+                                # Se o protagonista detectado joga em um desses clubes (ex: Mbappé no Real Madrid), não bloqueia o clube dele!
+                                if any(termo_prot in (protagonista_detectado or "").lower() or termo_prot in t_tit_lower for termo_prot in ["mbapp", "vini", "bellingham", "rodrygo", "endrick"]):
+                                    adv_indesejados = [adv for adv in adv_indesejados if adv != "real madrid"]
                                 if any(adv in t_vid for adv in adv_indesejados):
                                     continue
                                 if not any(ok in t_vid for ok in termos_obrigatorios_futebol):
@@ -1008,14 +1013,39 @@ def processar_video(task_id: str, titulo: str, tipo: str, uploaded_image_paths: 
                 # Nomes de personalidades comuns e entidades mencionadas no título e roteiro
                 # Detecção Dinâmica Universal de Protagonistas (Futebol e Fergil):
                 # Extrai automaticamente os nomes próprios do roteiro e título para buscar a foto oficial exata!
+                # Mapeamento canônico para busca precisa de fotos oficiais na Wikipedia
+                mapeamento_sinonimos = {
+                    "mbappé": "Kylian Mbappé",
+                    "mbappe": "Kylian Mbappé",
+                    "kylian": "Kylian Mbappé",
+                    "zidane": "Zinedine Zidane",
+                    "zinedine": "Zinedine Zidane",
+                    "vini": "Vinícius Júnior",
+                    "vinicius": "Vinícius Júnior",
+                    "cr7": "Cristiano Ronaldo",
+                    "cristiano": "Cristiano Ronaldo",
+                    "messi": "Lionel Messi",
+                    "haaland": "Erling Haaland",
+                    "guardiola": "Pep Guardiola",
+                    "ancelotti": "Carlo Ancelotti",
+                    "bellingham": "Jude Bellingham",
+                    "yamal": "Lamine Yamal"
+                }
+
                 possiveis_nomes = [
                     "JJ Gabriel", "Rafael Nadal", "Harry Kane", "Erling Haaland", "Raphinha", "Luis Suárez", "Vinicius Junior",
                     "Lamine Yamal", "Carlo Ancelotti", "Kylian Mbappé", "Jude Bellingham", "Rodri", "Pep Guardiola",
                     "Mikel Arteta", "Hansi Flick", "Robert Lewandowski", "Cristiano Ronaldo", "Lionel Messi", "Neymar",
-                    "Steve Jobs", "Warren Buffett", "Sam Altman", "Jensen Huang", "Elon Musk", "Florentino Pérez"
+                    "Steve Jobs", "Warren Buffett", "Sam Altman", "Jensen Huang", "Elon Musk", "Florentino Pérez",
+                    "Zinedine Zidane"
                 ]
                 texto_total = f"{titulo} {roteiro}".lower()
                 entidades_citadas = [nome for nome in possiveis_nomes if nome.lower() in texto_total]
+
+                # Adiciona personalidades pelo apelido popular (ex: 'Mbappé' -> 'Kylian Mbappé', 'Zidane' -> 'Zinedine Zidane')
+                for apelido, nome_oficial in mapeamento_sinonimos.items():
+                    if apelido in texto_total and nome_oficial not in entidades_citadas:
+                        entidades_citadas.insert(0, nome_oficial)
                 
                 # Extração avançada de nomes próprios com 2 palavras maiúsculas diretamente do roteiro falado
                 cands = re.findall(r"\b([A-ZÁÉÍÓÚÂÊÔÃÕ][a-záéíóúâêôãõ]+(?:\s+[A-ZÁÉÍÓÚÂÊÔÃÕ][a-záéíóúâêôãõ]+))\b", f"{titulo} {roteiro}")
@@ -1128,16 +1158,18 @@ def processar_video(task_id: str, titulo: str, tipo: str, uploaded_image_paths: 
                     clips_entidades.append(c_ent_out)
                     clip_idx += 1
 
-        # Se houver clipes de personalidades, insere nos momentos iniciais e intermediários do vídeo
+        # Se houver clipes de personalidades, insere com destaque máximo nos momentos iniciais e intermediários do vídeo
         if clips_entidades:
-            # Coloca a primeira foto logo após o primeiro take do jogo (corte 2)
-            if len(clip_files) >= 1:
+            # Em shorts de notícias com personalidades centrais, abre IMEDIATAMENTE com a imagem do protagonista no take 1!
+            if not is_doc:
+                clip_files.insert(0, clips_entidades[0])
+            elif len(clip_files) >= 1:
                 clip_files.insert(1, clips_entidades[0])
             else:
                 clip_files.extend(clips_entidades)
-            # Se houver mais personalidades, espalha ao longo do vídeo
-            for extra_c in clips_entidades[1:]:
-                pos = min(len(clip_files), 4)
+            # Se houver mais personalidades (ex: Mbappé e Zidane), espalha dinamicamente
+            for i_extra, extra_c in enumerate(clips_entidades[1:]):
+                pos = min(len(clip_files), 2 + i_extra * 2)
                 clip_files.insert(pos, extra_c)
 
         # Se mesmo com fotos ainda faltar clipes para preencher o tempo da narração, duplicar as fotos com ângulos invertidos
