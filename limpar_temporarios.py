@@ -49,7 +49,19 @@ def executar_faxina_disco():
         for item in os.listdir(temp_win):
             apagar(os.path.join(temp_win, item))
 
-    # 4. Arquivos .tmp, .bak soltos
+    # 4. Limpar vídeos já publicados e brutos antigos de produção
+    pastas_publicadas = [
+        "canais/canal_01_futebol_invisivel/videos_publicados",
+        "canais/canal_03_fergil/videos_publicados",
+        "canais/canal_04_achadinhos_moda_feminina/videos_publicados",
+        "canais/canal_01_futebol_invisivel/producao_ativa"
+    ]
+    for p in pastas_publicadas:
+        if os.path.exists(p):
+            for item in os.listdir(p):
+                apagar(os.path.join(p, item))
+
+    # 5. Arquivos .tmp, .bak soltos
     for root, dirs, files in os.walk("."):
         if any(ign in root for ign in [".git", "venv", ".venv"]):
             continue
