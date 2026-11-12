@@ -631,13 +631,13 @@ def executar_ciclo_autopiloto():
         except Exception as e_fer:
             logger.warning(f"Falha na produção FERGIL: {e_fer}")
 
-    # 8. BOT DE RESPOSTA AOS COMENTÁRIOS DOS INSCRITOS (Todos os canais)
+    # 8. BOT DE RESPOSTA AOS COMENTÁRIOS DOS INSCRITOS (Economia estrita de cota: apenas últimos 5 vídeos)
     if AUTOPILOT_CONFIG.get("responder_comentarios"):
         try:
-            logger.info("💬 [BOT COMENTÁRIOS] Respondendo dúvidas dos inscritos...")
-            resp_fut = youtube_comments_manager.responder_comentarios_inscritos_automatico("futebol", max_respostas=5)
-            resp_mod = youtube_comments_manager.responder_comentarios_inscritos_automatico("moda", max_respostas=5)
-            resp_fer = youtube_comments_manager.responder_comentarios_inscritos_automatico("fergil", max_respostas=5)
+            logger.info("💬 [BOT COMENTÁRIOS] Respondendo dúvidas dos inscritos (scan otimizado)...")
+            resp_fut = youtube_comments_manager.responder_comentarios_inscritos_automatico("futebol", max_respostas=3, max_videos_scan=5)
+            resp_mod = youtube_comments_manager.responder_comentarios_inscritos_automatico("moda", max_respostas=3, max_videos_scan=5)
+            resp_fer = youtube_comments_manager.responder_comentarios_inscritos_automatico("fergil", max_respostas=3, max_videos_scan=5)
             total_resp = (
                 resp_fut.get("comentarios_respondidos", 0) +
                 resp_mod.get("comentarios_respondidos", 0) +
@@ -647,11 +647,11 @@ def executar_ciclo_autopiloto():
         except Exception as e_resp:
             logger.warning(f"Erro no bot de respostas: {e_resp}")
 
-    # 9. AUDITORIA E FIXAÇÃO DE 1º COMENTÁRIO
+    # 9. AUDITORIA E FIXAÇÃO DE 1º COMENTÁRIO (Apenas últimos 6 vídeos por canal para proteger a cota de upload!)
     try:
-        youtube_comments_manager.auditar_e_fixar_comentarios_canal("futebol", max_videos=100)
-        youtube_comments_manager.auditar_e_fixar_comentarios_canal("moda", max_videos=100)
-        youtube_comments_manager.auditar_e_fixar_comentarios_canal("fergil", max_videos=100)
+        youtube_comments_manager.auditar_e_fixar_comentarios_canal("futebol", max_videos=6)
+        youtube_comments_manager.auditar_e_fixar_comentarios_canal("moda", max_videos=6)
+        youtube_comments_manager.auditar_e_fixar_comentarios_canal("fergil", max_videos=6)
         resultado_ciclo["acoes"].append("Auditoria e fixação de 1º comentário concluída nos 3 canais.")
     except Exception as e_pin:
         logger.warning(f"Erro fixando comentários: {e_pin}")

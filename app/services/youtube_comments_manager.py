@@ -61,12 +61,11 @@ def gerar_texto_comentario_otimizado(titulo: str, descricao: str, canal: str = "
             assunto = " ".join(palavras) if palavras else "esse caso"
             return f"👀 E para você: qual é a sua opinião sobre {assunto}? Foi decisão certa ou erro grave da diretoria? Comente abaixo! 👇⚽"
 
-def responder_comentarios_inscritos_automatico(canal: str = "futebol", max_respostas: int = 15, max_videos_scan: int = 50) -> dict:
+def responder_comentarios_inscritos_automatico(canal: str = "futebol", max_respostas: int = 5, max_videos_scan: int = 5) -> dict:
     """
-    BOT DE RESPOSTAS INTELIGENTE:
-    Percorre os comentários deixados pelos inscritos em todos os vídeos recentes do canal (até max_videos_scan).
-    Se o comentário for de um espectador e ainda não tiver sido respondido pelo nosso canal,
-    gera uma resposta engajadora e empática via API oficial do YouTube.
+    BOT DE RESPOSTAS INTELIGENTE (OTIMIZADO PARA ECONOMIA DE COTA YOUTUBE API):
+    Percorre apenas os vídeos mais recentes do canal (padrão: últimos 5 vídeos) para preservar
+    a cota diária de 10.000 unidades para uploads e agendamentos.
     """
     relatorio = {
         "canal": canal,
@@ -82,14 +81,14 @@ def responder_comentarios_inscritos_automatico(canal: str = "futebol", max_respo
         meu_canal_id = ch_resp["items"][0]["id"]
         uploads_id = ch_resp["items"][0]["contentDetails"]["relatedPlaylists"]["uploads"]
 
-        # Busca vídeos recentes cobrindo todo o histórico recente
+        # Busca vídeos recentes cobrindo apenas os últimos max_videos_scan
         todos_itens = []
         next_page = None
         while len(todos_itens) < max_videos_scan:
             vids_resp = yt.playlistItems().list(
                 part="snippet",
                 playlistId=uploads_id,
-                maxResults=min(50, max_videos_scan - len(todos_itens)),
+                maxResults=min(10, max_videos_scan - len(todos_itens)),
                 pageToken=next_page
             ).execute()
             novos = vids_resp.get("items", [])
@@ -188,12 +187,17 @@ def responder_comentarios_inscritos_automatico(canal: str = "futebol", max_respo
                 continue
 
     except Exception as e_total:
-        logger.error(f"Erro no bot de respostas: {e_total}")
-        relatorio["erro"] = str(e_total)
+        err_msg = str(e_total)
+        if "quotaExceeded" in err_msg or "exceeded your" in err_msg:
+            logger.warning(f"⏸️ [COTA YOUTUBE] Cota diária da API atingida em '{canal}'. Renovação automática às 07:00 (horário de Cabo Verde / 00:00 PST).")
+            relatorio["erro"] = "Cota diária da API do YouTube atingida (renova automaticamente à meia-noite PST / 07:00 CV)."
+        else:
+            logger.error(f"Erro no bot de respostas: {e_total}")
+            relatorio["erro"] = err_msg
 
     return relatorio
 
-def auditar_e_fixar_comentarios_canal(canal: str = "moda", max_videos: int = 100) -> dict:
+def auditar_e_fixar_comentarios_canal(canal: str = "moda", max_videos: int = 8) -> dict:
     relatorio = {
         "canal": canal,
         "videos_analisados": 0,
