@@ -73,10 +73,12 @@ def disparar_producao_video_futebol(is_doc: bool = False, titulo_especifico: str
         logger.error(f"Erro na produção de vídeo futebol: {e}")
         return False
 
-def disparar_producao_video_moda():
-    """Gera autonomamente um vídeo de moda/afiliado com busca multi-categoria e rotação inteligente."""
+def disparar_producao_video_moda(is_doc: bool = False):
+    """Gera autonomamente um vídeo de moda/afiliado (Short 9:16 ou Guia Completo 16:9)."""
     try:
         import app_render_studio
+        tipo_alvo = "doc" if is_doc else "short"
+        tipo_video_pipeline = "doc" if is_doc else "afiliado_moda"
         # PESQUISA FOCADA NO PÚBLICO REAL DE ALANA CRUZ (70% MULHERES 55+ ANOS):
         # Elegância madura, vestidos midi confortáveis, linho/algodão, conjuntos chiques, casacos e bolsas
         from app.services import seasonal_trend_engine
@@ -106,7 +108,7 @@ def disparar_producao_video_moda():
         termo_usado = None
         
         for termo in termos_unicos:
-            logger.info(f"🌿 [MODA INTELIGENTE] Testando catálogo para o termo: '{termo}'...")
+            logger.info(f"🌿 [MODA INTELIGENTE {'16:9 DOC' if is_doc else '9:16 SHORT'}] Testando catálogo para o termo: '{termo}'...")
             produtos = aliexpress_affiliate.search_winning_fashion_products(
                 keywords=termo,
                 page_size=25,
@@ -160,7 +162,7 @@ def disparar_producao_video_moda():
         task_id = str(uuid.uuid4())
         app_render_studio.TASKS[task_id] = {
             "titulo": titulo,
-            "tipo": "afiliado_moda",
+            "tipo": tipo_video_pipeline,
             "canal_destino": "moda",
             "status": "Iniciando download de assets na API AliExpress...",
             "roteiro": "",
@@ -181,11 +183,11 @@ def disparar_producao_video_moda():
         
         t = threading.Thread(
             target=app_render_studio.processar_video,
-            args=(task_id, titulo, "afiliado_moda", None, "", "", prod),
+            args=(task_id, titulo, tipo_video_pipeline, None, "", "", prod),
             daemon=True
         )
         t.start()
-        logger.info(f"Produção Moda iniciada com sucesso na tarefa {task_id} (Termo: {termo_usado})")
+        logger.info(f"Produção Moda ({'16:9 Widescreen' if is_doc else '9:16 Short'}) iniciada com sucesso na tarefa {task_id} (Termo: {termo_usado})")
         return True
     except Exception as e:
         logger.error(f"Erro na produção de vídeo moda: {e}")
@@ -588,12 +590,15 @@ def executar_ciclo_autopiloto():
     except Exception as e_f:
         logger.warning(f"Falha na produção de futebol: {e_f}")
 
-    # 7. PRODUÇÃO MODA (Afiliado)
+    # 7. PRODUÇÃO MODA (Afiliado - Dupla Estratégica: Doc 16:9 + Short 9:16)
     try:
         if autoviral_brain.contar_backlog_canal("moda") >= max_b:
             logger.warning(f"🛑 [MODA] Backlog de uploads atingiu o limite ({max_b} vídeos pendentes). Produção pausada até escoamento.")
-        elif disparar_producao_video_moda():
-            resultado_ciclo["acoes"].append("Moda: Peça de Afiliado produzida e postada como Não Listado.")
+        else:
+            # Produz a peça de 16:9 para autoridade/monetização longa + Short 9:16 para tração viral rápida
+            disparar_producao_video_moda(is_doc=True)
+            disparar_producao_video_moda(is_doc=False)
+            resultado_ciclo["acoes"].append("Moda: Dupla Estratégica produzida (Guia 16:9 + Short Viral 9:16) e postada como Não Listado.")
     except Exception as e_m:
         logger.warning(f"Falha na produção de moda: {e_m}")
 

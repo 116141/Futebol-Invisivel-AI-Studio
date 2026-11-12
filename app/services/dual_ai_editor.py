@@ -96,21 +96,35 @@ def auditar_roteiro_com_groq(roteiro: str, titulo: str, canal: str, is_doc: bool
             - Tom de conversa empolgante de arquibancada.
             """
     elif canal == "moda":
-        regras_canal = """
-        - FORMATO SHORT DE MODA / AFILIADOS (9:16): Duração dinâmica de 25 a 35 segundos (55 a 85 palavras).
-        - PERSONA: Alana Cruz, consultora de elegância e achadinhos para mulheres elegantes e maduras (45 a 65+ anos).
-        - ANTI-REPETIÇÃO E VOCABULÁRIO FRESCO:
-          NUNCA use sempre as mesmas aberturas batidas como 'Meninas, parem tudo!' ou 'Olha esse achadinho'.
-          VARIE os ganchos: use curiosidade sobre corte, elegância sem esforço, conforto no corpo, truques de estilo ou comparação de valor.
-        - FIDELIDADE À CATEGORIA DO PRODUTO:
-          Se for BOLSA, fale de espaço interno, alça, acabamento e versatilidade. NUNCA diga que é tecido, vestido ou roupa!
-          Se for SAPATO/SALTO, fale de conforto ao pisar, postura e salto estável.
-          Se for RELÓGIO/JOIA, fale de sofisticação, detalhes da caixa/pulseira e presença visual.
-          Se for VESTIDO/CONJUNTO, fale de modelagem que valoriza a silhueta com leveza e discrição.
-        - CHAMADA DE AÇÃO ÚNICA NO FINAL (Últimos 3 segundos):
-          Apenas uma chamada direta: indicar que o link oficial com desconto exclusivo está no primeiro comentário fixado e convidar a seguir/inscrever-se.
-        - RETORNE APENAS O TEXTO FALADO PURO (sem colchetes de cena, sem [Alana], sem aspas).
-        """
+        if is_doc:
+            regras_canal = """
+            - FORMATO GUIA DE MODA / ELEGÂNCIA WIDESCREEN 16:9 (Duração de 3 a 5 minutos, mínimo 400 palavras narradas).
+            - PERSONA: Alana Cruz, especialista e mentora em elegância feminina, caimento de alfaiataria e compras inteligentes para mulheres maduras (45 a 65+ anos).
+            - DIDÁTICA E VALOR PROFISSIONAL:
+              O vídeo não pode ser um comercial raso. Deve ser uma CONSULTORIA DE ESTILO completa:
+              1. Explicar como combinar a peça com sapatos, bolsas e sobreposições (Old Money / Elegância Discreta).
+              2. Falar sobre o caimento no corpo, como disfarçar inseguranças e valorizar a silhueta com leveza.
+              3. Tecidos nobres, acabamentos e durabilidade da peça.
+            - GATILHOS DE CONVERSÃO & COMISSÃO:
+              Explicar de forma natural onde encontrar com segurança pelo menor preço, indicando que a curadoria oficial com os links da Amazon (entrega rápida) e do AliExpress (fábrica) está no primeiro comentário fixado e na descrição.
+            - Retorne APENAS o texto narrado falado puro (sem colchetes, sem [Cena], sem emojis).
+            """
+        else:
+            regras_canal = """
+            - FORMATO SHORT DE MODA / AFILIADOS (9:16): Duração dinâmica de 25 a 35 segundos (55 a 85 palavras).
+            - PERSONA: Alana Cruz, consultora de elegância e achadinhos para mulheres elegantes e maduras (45 a 65+ anos).
+            - ANTI-REPETIÇÃO E VOCABULÁRIO FRESCO:
+              NUNCA use sempre as mesmas aberturas batidas como 'Meninas, parem tudo!' ou 'Olha esse achadinho'.
+              VARIE os ganchos: use curiosidade sobre corte, elegância sem esforço, conforto no corpo, truques de estilo ou comparação de valor.
+            - FIDELIDADE À CATEGORIA DO PRODUTO:
+              Se for BOLSA, fale de espaço interno, alça, acabamento e versatilidade. NUNCA diga que é tecido, vestido ou roupa!
+              Se for SAPATO/SALTO, fale de conforto ao pisar, postura e salto estável.
+              Se for RELÓGIO/JOIA, fale de sofisticação, detalhes da caixa/pulseira e presença visual.
+              Se for VESTIDO/CONJUNTO, fale de modelagem que valoriza a silhueta com leveza e discrição.
+            - CHAMADA DE AÇÃO ÚNICA NO FINAL (Últimos 3 segundos):
+              Apenas uma chamada direta: indicar que o link oficial com desconto exclusivo está no primeiro comentário fixado e convidar a seguir/inscrever-se.
+            - RETORNE APENAS O TEXTO FALADO PURO (sem colchetes de cena, sem [Alana], sem aspas).
+            """
     elif canal == "fergil":
         if is_doc:
             regras_canal = """
