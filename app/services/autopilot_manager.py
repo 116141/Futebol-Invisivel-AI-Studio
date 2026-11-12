@@ -143,6 +143,20 @@ def disparar_producao_video_moda():
 
         prod, titulo = random.choice(candidatos_validos)
             
+        # Gera link contextual da Amazon correspondente para oferta híbrida (AliExpress + Amazon)
+        from app.services import amazon_affiliate
+        oferta_amz = amazon_affiliate.selecionar_oferta_inteligente(titulo, "moda")
+        link_amz = oferta_amz["link"] if oferta_amz else amazon_affiliate.gerar_link_afiliado_amazon(termo_usado or titulo)
+        link_ali = prod.get("short_link", "")
+
+        descricao_hibrida = (
+            f"{titulo}\n\n"
+            f"✨ ONDE ENCONTRAR COM DESCONTO EXCLUSIVO:\n"
+            f"📦 Opção Amazon (Entrega Rápida): {link_amz}\n"
+            f"👗 Opção Fábrica Original: {link_ali}\n\n"
+            f"#moda #achadinhos #elegancia #estilo #dicasdelook"
+        )
+
         task_id = str(uuid.uuid4())
         app_render_studio.TASKS[task_id] = {
             "titulo": titulo,
@@ -154,12 +168,13 @@ def disparar_producao_video_moda():
             "file_name": None,
             "txt_path": None,
             "txt_name": None,
-            "link_afiliado": prod.get("short_link", ""),
+            "link_afiliado": link_ali,
+            "link_amazon": link_amz,
             "preco": prod.get("sale_price", ""),
             "comissao_pct": prod.get("commission_rate", ""),
             "product_id": str(prod.get("product_id", "")),
             "post_titulo": titulo,
-            "post_descricao": f"{titulo}\n\n👗 Link do Look: {prod.get('short_link', '')}\n\n#moda #achadinhos",
+            "post_descricao": descricao_hibrida,
             "post_comentario": ""
         }
         autoviral_brain.salvar_tarefa_db(task_id, app_render_studio.TASKS[task_id])

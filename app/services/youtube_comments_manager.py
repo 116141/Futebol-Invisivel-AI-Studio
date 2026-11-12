@@ -21,8 +21,16 @@ def gerar_texto_comentario_otimizado(titulo: str, descricao: str, canal: str = "
     canal_norm = canal.lower()
 
     if canal_norm == "moda":
+        oferta_amz = amazon_affiliate.selecionar_oferta_inteligente(titulo, "moda")
+        link_amz = oferta_amz["link"] if oferta_amz else amazon_affiliate.gerar_link_afiliado_amazon(titulo)
+        
         if link:
-            return f"✨ Meninas, o link oficial deste modelo está aqui antes que esgote: {link}\n\n(Dica: confira o cupom de primeira compra!) 💖"
+            return (
+                f"✨ Meninas, separamos as opções oficiais com desconto antes que esgote:\n\n"
+                f"📦 Entrega Rápida (Amazon): {link_amz}\n"
+                f"👗 Direto da Fábrica: {link}\n\n"
+                f"Qual versão vocês preferem? Deixem nos comentários! 💖👇"
+            )
         else:
             coment_amz = amazon_affiliate.gerar_comentario_afiliado_amazon(titulo, "moda")
             if coment_amz:

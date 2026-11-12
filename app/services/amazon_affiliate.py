@@ -76,18 +76,39 @@ CATALOGO_AMAZON_CAMPEOES = {
     ],
     "moda": [
         {
-            "palavras_chave": ["bolsa", "acessorio", "elegante", "look"],
+            "palavras_chave": ["bolsa", "acessorio", "elegante", "look", "couro"],
             "produto": "Bolsa Feminina Elegante Transversal",
             "asin": "B0C7L7QY7P",
             "busca_fallback": "bolsa feminina transversal couro moderna",
             "cta": "👜 Bolsa tendência que combina com qualquer look sofisticado:"
         },
         {
-            "palavras_chave": ["vestido", "verao", "outono", "estilo", "tendencia"],
+            "palavras_chave": ["vestido", "verao", "outono", "estilo", "tendencia", "midi"],
             "produto": "Vestido Casual Elegante Tendência",
             "asin": "B09B1F2H5Q",
             "busca_fallback": "vestido feminino elegante casual moda",
             "cta": "✨ O modelo destaque da temporada com entrega rápida:"
+        },
+        {
+            "palavras_chave": ["secador", "escova", "cabelo", "alisadora", "modeladora", "beleza"],
+            "produto": "Escova Secadora e Modeladora 5 em 1",
+            "asin": "B09KG9X58N",
+            "busca_fallback": "escova secadora e modeladora cabelo profissional",
+            "cta": "💇‍♀️ Escova secadora e modeladora multifuncional campeã de vendas:"
+        },
+        {
+            "palavras_chave": ["sapato", "salto", "sandalia", "conforto", "calcado", "bota"],
+            "produto": "Sapato Conforto Salto Bloco Feminino",
+            "asin": "B0892DMB1B",
+            "busca_fallback": "sapato salto bloco conforto feminino",
+            "cta": "👠 Calçado anatômico e elegante para usar o dia inteiro sem cansar:"
+        },
+        {
+            "palavras_chave": ["casaco", "sobretudo", "cardigan", "blazer", "frio", "inverno"],
+            "produto": "Casaco Sobretudo Feminino Alfaiataria",
+            "asin": "B08KGT6VBN",
+            "busca_fallback": "casaco sobretudo feminino elegante",
+            "cta": "🧥 Casaco sobretudo elegante com corte clássico e tecido encorpado:"
         }
     ]
 }
