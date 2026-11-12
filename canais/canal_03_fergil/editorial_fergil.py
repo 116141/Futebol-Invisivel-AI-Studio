@@ -202,6 +202,119 @@ PAUTAS_FERGIL_MULTIDIMENSIONAIS = [
         "pilar": "Estratégias de Elite",
         "gancho": "A história não se repete, mas ela rima. Todo império que acumulou dívidas impagáveis colapsou da mesma maneira.",
         "palavras_chave": "Ray Dalio, Ciclos Econômicos, Dívida Soberana, Macroeconomia, FERGIL"
+    },
+
+    # --- EXPANSÃO EDITORIAL 2026: INTELIGÊNCIA ARTIFICIAL APLICADA, GRANDES EMPRESAS E ENSINAMENTOS PRÁTICOS ---
+
+    # PILAR 4 (EXPANSÃO): INTELIGÊNCIA ARTIFICIAL, AGENTES & O FUTURO DO DINHEIRO
+    {
+        "titulo": "Como Criar um Negócio Lucrativo Usando Agentes de IA Sem Saber Programar",
+        "tipo": "doc",
+        "pilar": "Inteligência Artificial",
+        "gancho": "O jogo mudou: em 2026, quem comanda um time de agentes autônomos tem a força de produção de uma agência de 50 pessoas.",
+        "palavras_chave": "Agentes Autônomos, Inteligência Artificial, Negócios de IA, Solopreneur, Renda com IA, FERGIL"
+    },
+    {
+        "titulo": "O Prompt Secreto de 3 Etapas que os Executivos Mais Pagos Usam no ChatGPT e Claude",
+        "tipo": "short",
+        "pilar": "Inteligência Artificial",
+        "gancho": "Se você ainda usa a IA apenas fazendo perguntas simples, você está jogando fora 90% do poder cognitivo dela.",
+        "palavras_chave": "Engenharia de Prompt, ChatGPT, Claude, Produtividade Executiva, FERGIL"
+    },
+    {
+        "titulo": "A Guerra Silenciosa Entre OpenAI, Anthropic e Google: Quem Vai Controlar a Sua Vida em 5 Anos",
+        "tipo": "doc",
+        "pilar": "Inteligência Artificial",
+        "gancho": "Não é apenas tecnologia: é a disputa pelo controle da infraestrutura de pensamento de toda a civilização humana.",
+        "palavras_chave": "OpenAI, Sam Altman, Anthropic, Gemini, Big Tech IA, FERGIL"
+    },
+    {
+        "titulo": "As 3 Habilidades Humanas que Nenhuma Inteligência Artificial Jamais Conseguirá Copiar",
+        "tipo": "short",
+        "pilar": "Inteligência Artificial",
+        "gancho": "Quanto mais a IA se torna perfeita na técnica, mais caro e raro se torna o julgamento intuitivo humano.",
+        "palavras_chave": "Futuro das Profissões, Habilidades Humanas, Liderança, Julgamento Crítico, FERGIL"
+    },
+    {
+        "titulo": "Como a IA Está Destruindo as Agências Tradicionais e Criando Micro-Monopólios",
+        "tipo": "doc",
+        "pilar": "Inteligência Artificial",
+        "gancho": "Empresas que cobravam 30 mil reais por mês estão sendo substituídas por fluxos automatizados de IA em menos de 10 minutos.",
+        "palavras_chave": "Disrupção de Mercado, Agências Digitais, Automação, IA nos Negócios, FERGIL"
+    },
+    {
+        "titulo": "A Diferença Brutal Entre Usar IA Como Brinquedo e Usar IA Como Alavanca de Riqueza",
+        "tipo": "short",
+        "pilar": "Inteligência Artificial",
+        "gancho": "O amador pede para a IA escrever um poema; o profissional cria sistemas de IA para gerar caixa 24 horas por dia.",
+        "palavras_chave": "Alavancagem Financeira, Mentalidade IA, Automação de Renda, FERGIL"
+    },
+
+    # PILAR 2 (EXPANSÃO): BASTIDORES DE GRANDES IMPÉRIOS & CASES DE SUCESSO
+    {
+        "titulo": "O Segredo da Ferrari: Por Que Eles Preferem Recusar Clientes a Aumentar a Produção",
+        "tipo": "doc",
+        "pilar": "Grandes Impérios",
+        "gancho": "Enzo Ferrari criou uma das marcas mais lucrativas do mundo com um mandamento: sempre entregue um carro a menos do que o mercado pede.",
+        "palavras_chave": "Ferrari, Escassez Extrema, Branding de Luxo, Estratégia de Negócios, FERGIL"
+    },
+    {
+        "titulo": "Como a Spotify Derrotou a Pirataria Fazendo as Pessoas Pagarem Por Música Grátis",
+        "tipo": "short",
+        "pilar": "Grandes Impérios",
+        "gancho": "Daniel Ek percebeu o que as gravadoras não viram: a conveniência vence qualquer arquivo pirata gratuito.",
+        "palavras_chave": "Spotify, Daniel Ek, Modelo de Assinatura, Inovação, FERGIL"
+    },
+    {
+        "titulo": "O Império Invisível de Bernard Arnault: A Máquina de Fazer Bilhões da LVMH",
+        "tipo": "doc",
+        "pilar": "Grandes Impérios",
+        "gancho": "Como um homem discreto comprou Louis Vuitton, Dior e Tiffany e se transformou no imperador absoluto do luxo mundial.",
+        "palavras_chave": "Bernard Arnault, LVMH, Mercado de Luxo, Aquisições Bilionárias, FERGIL"
+    },
+    {
+        "titulo": "A Estratégia Secreta da Amazon Flywheel: Como Jeff Bezos Esmaga Concorrentes no Preço",
+        "tipo": "doc",
+        "pilar": "Grandes Impérios",
+        "gancho": "O desenho que Jeff Bezos fez num guardanapo em 2001 explica por que é quase impossível competir contra a Amazon.",
+        "palavras_chave": "Amazon Flywheel, Jeff Bezos, Efeito de Rede, Estratégia Corporativa, FERGIL"
+    },
+    {
+        "titulo": "Por Que a Rolex Nunca Dá Desconto: A Psicologia do Relógio que Vale Mais Usado que Novo",
+        "tipo": "short",
+        "pilar": "Grandes Impérios",
+        "gancho": "Se você entrar hoje numa boutique da Rolex com uma mala de dinheiro, você não sai com um relógio. Entenda a genialidade dessa barreira.",
+        "palavras_chave": "Rolex, Reserva de Valor, Escassez Planejada, Luxo Real, FERGIL"
+    },
+
+    # PILAR 1 & 5 (EXPANSÃO): ENSINAMENTOS PRÁTICOS, FINANÇAS & PODER PESSOAL
+    {
+        "titulo": "A Regra das 5 Pessoas: Por Que o Seu Círculo Social Está Ditando a Sua Conta Bancária",
+        "tipo": "short",
+        "pilar": "Psicologia Financeira",
+        "gancho": "Você não ganha o que merece: você ganha a média exata das cinco conversas que você mais tem durante a semana.",
+        "palavras_chave": "Networking de Alto Nível, Ambiente de Sucesso, Mentalidade, FERGIL"
+    },
+    {
+        "titulo": "Como Construir Múltiplas Fontes de Renda Sem Ficar Maluco de Exaustão",
+        "tipo": "doc",
+        "pilar": "Finanças & Estratégias",
+        "gancho": "Ter 5 empregos não é ter 5 fontes de renda, é escravidão moderna. A chave é alavancagem de sistemas, não de horas.",
+        "palavras_chave": "Renda Passiva Real, Alavancagem de Negócios, Gestão Financeira, FERGIL"
+    },
+    {
+        "titulo": "O Segredo de Warren Buffett Para Avaliar Pessoas em 10 Minutos de Conversa",
+        "tipo": "short",
+        "pilar": "Modelos Mentais",
+        "gancho": "Integridade, inteligência e energia. Mas se a pessoa não tiver a primeira, as outras duas vão destruir você.",
+        "palavras_chave": "Warren Buffett, Caráter, Contratação de Líderes, Inteligência Emocional, FERGIL"
+    },
+    {
+        "titulo": "A Arte da Guerra nos Negócios: 3 Estratégias de Sun Tzu Para Vencer Concorrentes Maiores",
+        "tipo": "doc",
+        "pilar": "Estratégias de Elite",
+        "gancho": "A melhor vitória é aquela que você conquista sem disparar uma única flecha. Como empresas pequenas derrubam gigantes consolidados.",
+        "palavras_chave": "Sun Tzu, Arte da Guerra, Estratégia Empresarial, Posicionamento, FERGIL"
     }
 ]
 

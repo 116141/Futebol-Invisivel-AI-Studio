@@ -1737,15 +1737,26 @@ def buscar_oportunidades_negocios_fergil(query: str = "", max_results: int = 15)
     noticias = []
     titulos_vistos = set()
     
+    queries_diversificadas = [
+        # PILAR 1: INTELIGÊNCIA ARTIFICIAL, AGENTES & FUTURO DOS NEGÓCIOS
+        '("inteligencia artificial" OR "OpenAI" OR "ChatGPT" OR "Anthropic" OR "Claude" negocios) when:3d',
+        '("agentes autonomos" OR "startups IA" OR "revolucao IA" mercado) when:3d',
+        # PILAR 2: GIGANTES DA TECNOLOGIA & ESTRATÉGIA CORPORATIVA
+        '("Apple" OR "Microsoft" OR "Google" OR "Amazon" estrategia mercado) when:3d',
+        '("Meta" OR "Mark Zuckerberg" OR "Tesla" OR "Elon Musk" inovacao) when:3d',
+        # PILAR 3: FINANÇAS, WALL STREET & GRANDES INVESTIDORES
+        '("Warren Buffett" OR "Berkshire Hathaway" OR "Ray Dalio" investimentos) when:3d',
+        '("BlackRock" OR "Larry Fink" OR "Wall Street" bilionarios economia) when:3d',
+        # PILAR 4: SEMICONDUTORES & CHIPS (COM COOLDOWN)
+        '("Nvidia" OR "Jensen Huang" OR "TSMC" semicondutores) when:3d',
+    ]
+
     if query and len(query.strip()) >= 3:
         queries = [f'({query}) when:3d']
     else:
-        queries = [
-            '(Nvidia OR "Jensen Huang" OR OpenAI OR "Sam Altman" OR xAI OR "Elon Musk") when:3d',
-            '(inteligencia artificial negocios OR startups IA OR demissoes tech) when:3d',
-            '("Warren Buffett" OR "Mark Zuckerberg" OR "Jeff Bezos" OR "Donald Trump" economia) when:3d',
-            '(bilionarios Forbes OR IPO mercado financeiro OR Wall Street) when:3d',
-        ]
+        # Rotaciona para dar prioridade massiva a IA e outros gigantes, sem viciar em Nvidia
+        queries = queries_diversificadas
+
 
     for q_termo in queries:
         try:

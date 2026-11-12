@@ -207,12 +207,31 @@ def disparar_producao_video_fergil(is_doc: bool = True, gerar_par_short: bool = 
         # 1. Obter pautas já produzidas para nunca repetir título ou ângulo
         conn = autoviral_brain.get_conn()
         cur = conn.cursor()
-        cur.execute("SELECT titulo FROM videos_gerados WHERE canal = 'fergil'")
-        titulos_existentes = [row["titulo"] for row in cur.fetchall()]
+        cur.execute("SELECT titulo FROM videos_gerados WHERE canal = 'fergil' ORDER BY rowid DESC LIMIT 15")
+        ultimos_titulos = [row["titulo"].lower() for row in cur.fetchall()]
         conn.close()
 
+        # TRAVA DE COOLDOWN / ANTI-MONOPÓLIO DE ENTIDADE:
+        # Se um termo/empresa já apareceu em 2 ou mais dos últimos 5 vídeos, entra em quarentena estrita
+        cooldown_entidades = set()
+        termos_analisados = ["nvidia", "jensen huang", "apple", "steve jobs", "elon musk", "tesla", "warren buffett", "sam altman", "openai"]
+        ultimos_5 = ultimos_titulos[:5]
+        for termo in termos_analisados:
+            ocorrencias = sum(1 for t in ultimos_5 if termo in t)
+            if ocorrencias >= 2:
+                cooldown_entidades.add(termo)
+                logger.warning(f"💼 [FERGIL ANTI-MONOPÓLIO] Entidade '{termo.upper()}' em quarentena (repetida {ocorrencias}x nos últimos vídeos).")
+
+        def _tem_entidade_em_cooldown(texto: str) -> bool:
+            txt_low = texto.lower()
+            return any(ent in txt_low for ent in cooldown_entidades)
+
         # 2. Seleção inteligente e variada da esteira dos 5 pilares com Auditoria do Conselho de IAs
-        candidatos = [p for p in editorial_fergil.PAUTAS_FERGIL_MULTIDIMENSIONAIS if not autoviral_brain.verificar_video_duplicado(p["titulo"], "fergil")]
+        candidatos = [
+            p for p in editorial_fergil.PAUTAS_FERGIL_MULTIDIMENSIONAIS 
+            if not autoviral_brain.verificar_video_duplicado(p["titulo"], "fergil")
+            and not _tem_entidade_em_cooldown(p["titulo"])
+        ]
         
         tema_escolhido = None
         if candidatos:
@@ -233,9 +252,11 @@ def disparar_producao_video_fergil(is_doc: bool = True, gerar_par_short: bool = 
 
         # 3. Fallback: Caçador de notícias de negócios se todas as pautas internas tiverem sido usadas
         if not tema_escolhido:
-            noticias_reais = autoviral_brain.buscar_oportunidades_negocios_fergil(max_results=10)
+            noticias_reais = autoviral_brain.buscar_oportunidades_negocios_fergil(max_results=15)
             for n in noticias_reais:
                 t_noticia = n.get("titulo", "")
+                if _tem_entidade_em_cooldown(t_noticia):
+                    continue
                 if not autoviral_brain.verificar_video_duplicado(t_noticia, "fergil"):
                     tema_escolhido = {"titulo": t_noticia, "pilar": "Negócios & IA", "tipo": "doc" if is_doc else "short"}
                     break
