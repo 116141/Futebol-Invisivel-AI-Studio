@@ -1047,11 +1047,20 @@ def processar_video(task_id: str, titulo: str, tipo: str, uploaded_image_paths: 
                     if apelido in texto_total and nome_oficial not in entidades_citadas:
                         entidades_citadas.insert(0, nome_oficial)
                 
+                # Termos proibidos para busca de fotos de personalidades (estádios, termos genéricos, diretores históricos antigos)
+                locais_e_termos_proibidos = [
+                    "real madrid", "manchester united", "aston villa", "champions league", "futebol brasileiro",
+                    "copa libertadores", "futebol invisível", "kid messi", "primeiro minuto", "santiago bernabéu",
+                    "santiago bernabeu", "bernabeu", "bernabéu", "camp nou", "san siro", "maracanã", "maracana",
+                    "allianz arena", "anfield", "etihad stadium", "parc des princes", "estádio", "estadio",
+                    "real vini", "vini real", "ataque drones", "gol real"
+                ]
+
                 # Extração avançada de nomes próprios com 2 palavras maiúsculas diretamente do roteiro falado
                 cands = re.findall(r"\b([A-ZÁÉÍÓÚÂÊÔÃÕ][a-záéíóúâêôãõ]+(?:\s+[A-ZÁÉÍÓÚÂÊÔÃÕ][a-záéíóúâêôãõ]+))\b", f"{titulo} {roteiro}")
                 for c_nome in cands:
                     c_low = c_nome.lower()
-                    if c_low not in ["real madrid", "manchester united", "aston villa", "champions league", "futebol brasileiro", "copa libertadores", "futebol invisível", "kid messi", "primeiro minuto"]:
+                    if not any(proib in c_low for proib in locais_e_termos_proibidos):
                         if c_nome not in entidades_citadas:
                             entidades_citadas.append(c_nome)
 
