@@ -120,13 +120,58 @@ def auditar_e_sanitizar_metadados(snippet: dict, tipo: str, canal: str = "futebo
     
     return snippet
 
+def obter_slots_ocupados_reais_youtube(canal: str) -> set:
+    """
+    Consulta diretamente o YouTube Studio para saber quais slots de pico REALMENTE
+    possuem vídeos agendados ou publicados.
+    Se o usuário apagou ou desmarcou algum vídeo no YouTube Studio, o slot fica livre
+    automaticamente para re-agendamento imediato!
+    """
+    slots_ocupados = set()
+    try:
+        from app.services import youtube_uploader
+        import dateutil.parser
+        
+        youtube = youtube_uploader.get_authenticated_service(canal)
+        ch_resp = youtube.channels().list(part="contentDetails", mine=True).execute()
+        if not ch_resp.get("items"):
+            return slots_ocupados
+            
+        uploads_id = ch_resp["items"][0]["contentDetails"]["relatedPlaylists"]["uploads"]
+        res = youtube.playlistItems().list(part="snippet", playlistId=uploads_id, maxResults=50).execute()
+        vid_ids = [it["snippet"]["resourceId"]["videoId"] for it in res.get("items", [])]
+        if not vid_ids:
+            return slots_ocupados
+            
+        v_det = youtube.videos().list(part="snippet,status", id=",".join(vid_ids[:50])).execute()
+        for v in v_det.get("items", []):
+            st = v.get("status", {})
+            pub_at = st.get("publishAt")
+            if pub_at:
+                dt_utc = dateutil.parser.isoparse(pub_at)
+                # Conversão para horário de Cabo Verde (UTC-1)
+                tz_cv = timezone(timedelta(hours=-1))
+                dt_cv = dt_utc.astimezone(tz_cv)
+                data_cv_str = dt_cv.strftime("%Y-%m-%d")
+                slot_id = f"{dt_cv.hour:02d}_{dt_cv.minute:02d}"
+                slots_ocupados.add((data_cv_str, slot_id))
+    except Exception as e:
+        logger.warning(f"[{canal.upper()}] Não foi possível sincronizar slots do YouTube em tempo real: {e}")
+        
+    return slots_ocupados
+
 def encontrar_proximos_slots_livres(canal: str, qtd_slots: int = 10) -> List[Dict]:
     """
     Calcula os slots de pico cronologicamente a partir do momento atual em Cabo Verde.
-    Se o horário do dia de hoje já passou ou já está ocupado, pula para os próximos slots ou para o dia seguinte!
+    Verifica em tempo real no YouTube Studio se cada horário de pico está coberto.
+    Se algum vídeo foi apagado no dia atual ou nos dias seguintes, o horário vago é re-agendado
+    imediatamente para NUNCA deixar passar um horário de pico sem vídeo!
     """
     tz_cv = timezone(timedelta(hours=-1))
     agora_cv = datetime.now(tz_cv)
+    
+    # 1. Consulta o YouTube Studio em tempo real para sincronizar exatamente os vídeos ativos
+    slots_ocupados_yt = obter_slots_ocupados_reais_youtube(canal)
     
     slots_livres = []
     dia_offset = 0
@@ -147,9 +192,15 @@ def encontrar_proximos_slots_livres(canal: str, qtd_slots: int = 10) -> List[Dic
             if horario_slot_cv <= (agora_cv + timedelta(minutes=15)):
                 continue
                 
-            # Verifica se já está ocupado por publicação ou agendamento
-            if slot_ja_ocupado(canal, data_str, slot_id):
-                continue
+            # REGRA MESTRA: Se o YouTube Studio confirma que NÃO existe vídeo agendado nesse horário,
+            # o slot é considerado 100% LIVRE para preenchimento imediato!
+            if slots_ocupados_yt:
+                if (data_str, slot_id) in slots_ocupados_yt:
+                    continue
+            else:
+                # Fallback de segurança pelo SQLite se a consulta do YouTube falhar
+                if slot_ja_ocupado(canal, data_str, slot_id):
+                    continue
                 
             # Horário UTC para a API do YouTube
             horario_utc = horario_slot_cv.astimezone(timezone.utc)
