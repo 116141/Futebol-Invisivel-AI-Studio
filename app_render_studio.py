@@ -1397,7 +1397,8 @@ def processar_video(task_id: str, titulo: str, tipo: str, uploaded_image_paths: 
                     )
                     post_coment = "🚀 Qual a sua visão sobre esta estratégia? Deixe seu comentário e INSCREVA-SE na @FERGIL! 👇💼"
             elif is_afiliado:
-                post_titulo = f"{titulo[:52]} ✨ Puro Charme! | Alana Cruz #Shorts"
+                from app.services import viral_fashion_hooks
+                post_titulo = viral_fashion_hooks.gerar_titulo_viral_shorts(titulo, categoria=cat_detectada)
                 tags_virais = (
                     f"Alana Cruz, {titulo[:35]}, moda feminina 2026, achadinhos aliexpress, vestido elegante, "
                     "vestido de festa, looks elegantes, roupa feminina barata, look old money, vestido que modela o corpo, "
