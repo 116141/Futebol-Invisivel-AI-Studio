@@ -2,7 +2,8 @@ import os
 import json
 import urllib.request
 import urllib.parse
-from datetime import datetime
+from datetime import datetime, timezone
+import dateutil.parser
 from loguru import logger
 import autoviral_brain
 from app.services import youtube_uploader, aliexpress_affiliate
@@ -49,9 +50,9 @@ def obter_credenciais_telegram():
 def enviar_mensagem_telegram(texto: str) -> bool:
     token, chat_id = obter_credenciais_telegram()
     if not token or not chat_id:
-        logger.warning("Credenciais do Telegram não configuradas.")
+        logger.warning("Credenciais do Telegram não configuradas (.env). Relatório não enviado.")
         return False
-        
+    
     url = f"https://api.telegram.org/bot{token}/sendMessage"
     payload = {
         "chat_id": chat_id,
@@ -59,14 +60,75 @@ def enviar_mensagem_telegram(texto: str) -> bool:
         "parse_mode": "Markdown",
         "disable_web_page_preview": True
     }
-    data = json.dumps(payload).encode("utf-8")
-    req = urllib.request.Request(url, data=data, headers={"Content-Type": "application/json"})
+    
     try:
-        with urllib.request.urlopen(req, timeout=10) as resp:
-            return resp.status == 200
+        data = json.dumps(payload).encode("utf-8")
+        req = urllib.request.Request(url, data=data, headers={"Content-Type": "application/json"})
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            res_data = json.loads(resp.read().decode("utf-8"))
+            if res_data.get("ok"):
+                logger.success("Relatório executivo enviado com sucesso ao Telegram!")
+                return True
+            else:
+                logger.error(f"Erro Telegram: {res_data}")
+                return False
     except Exception as e:
-        logger.error(f"Erro enviando mensagem ao Telegram: {e}")
+        logger.error(f"Falha de conexão com a API do Telegram: {e}")
         return False
+
+def consultar_grade_agendada_canal(canal_nome: str, data_alvo: str = None) -> list:
+    """Consulta os vídeos agendados oficialmente para a data especificada (default hoje)."""
+    if not data_alvo:
+        data_alvo = datetime.now().strftime("%Y-%m-%d")
+        
+    agendados = []
+    try:
+        youtube = youtube_uploader.get_authenticated_service(canal_nome)
+        ch_resp = youtube.channels().list(part="contentDetails", mine=True).execute()
+        if not ch_resp.get("items"):
+            return []
+        uploads_id = ch_resp["items"][0]["contentDetails"]["relatedPlaylists"]["uploads"]
+        
+        res = youtube.playlistItems().list(part="snippet,status", playlistId=uploads_id, maxResults=50).execute()
+        vid_ids = [it["snippet"]["resourceId"]["videoId"] for it in res.get("items", [])]
+        if not vid_ids:
+            return []
+            
+        v_det = youtube.videos().list(part="snippet,status", id=",".join(vid_ids[:50])).execute()
+        for v in v_det.get("items", []):
+            st = v.get("status", {})
+            sn = v.get("snippet", {})
+            pub_at = st.get("publishAt")
+            titulo = sn.get("title", "")
+            vid_id = v.get("id")
+            
+            if pub_at and data_alvo in pub_at:
+                try:
+                    dt_utc = dateutil.parser.isoparse(pub_at)
+                    # Hora UTC e Hora de Cabo Verde (UTC-1)
+                    h_utc = dt_utc.strftime("%H:%M")
+                    h_cv = f"{((dt_utc.hour - 1) % 24):02d}:{dt_utc.minute:02d}"
+                    agendados.append({
+                        "id": vid_id,
+                        "titulo": titulo,
+                        "horario_utc": h_utc,
+                        "horario_cv": h_cv,
+                        "dt": dt_utc
+                    })
+                except Exception:
+                    agendados.append({
+                        "id": vid_id,
+                        "titulo": titulo,
+                        "horario_utc": pub_at,
+                        "horario_cv": pub_at,
+                        "dt": datetime.now()
+                    })
+                    
+        agendados.sort(key=lambda x: x["dt"])
+    except Exception as e:
+        logger.warning(f"Erro obtendo grade agendada de {canal_nome}: {e}")
+        
+    return agendados
 
 def consultar_dados_canal_e_crescimento(canal_nome: str) -> dict:
     init_tabela_historico_canal()
@@ -113,45 +175,36 @@ def consultar_dados_canal_e_crescimento(canal_nome: str) -> dict:
     """, (canal_nome, inscritos, views_totais, videos_totais, hoje))
     conn.commit()
     conn.close()
-
-    if delta_sub > 0 or delta_views > 500:
-        termometro = "🚀 *EM FORTE CRESCIMENTO*"
-        tendencia = f"🟢 +{delta_sub} inscritos | +{delta_views:,} views recentes".replace(",", ".")
-    elif delta_views > 0:
-        termometro = "📈 *CRESCENDO MODERADO*"
-        tendencia = f"🟢 +{delta_views:,} views recentes".replace(",", ".")
-    else:
-        termometro = "⚖️ *ESTÁVEL / BASE CONSOLIDANDO*"
-        tendencia = "🟡 Tráfego orgânico estável"
-
+    
+    termometro = "🔥 Em Alta" if delta_views > 1000 or delta_sub > 10 else "🟢 Ativo e Crescendo"
+    tendencia = f"+{delta_sub} inscritos | +{delta_views:,} views hoje".replace(",", ".") if delta_views >= 0 else "Estável"
+    
     return {
         "titulo": titulo_canal,
         "inscritos": inscritos,
         "views_totais": views_totais,
         "videos_totais": videos_totais,
-        "delta_sub": delta_sub,
-        "delta_views": delta_views,
         "termometro": termometro,
         "tendencia": tendencia
     }
 
 def formatar_relatorio_executivo() -> str:
+    hoje_fmt = datetime.now().strftime("%d/%m/%Y")
+    hoje_iso = datetime.now().strftime("%Y-%m-%d")
     agora = datetime.now().strftime("%d/%m/%Y às %H:%M")
     
     dados_fut = consultar_dados_canal_e_crescimento("futebol")
     dados_mod = consultar_dados_canal_e_crescimento("moda")
     dados_fer = consultar_dados_canal_e_crescimento("fergil")
     
+    # Consulta a grade oficial de vídeos agendados para hoje em cada canal
+    agendados_fut = consultar_grade_agendada_canal("futebol", hoje_iso)
+    agendados_fer = consultar_grade_agendada_canal("fergil", hoje_iso)
+    agendados_mod = consultar_grade_agendada_canal("moda", hoje_iso)
+    total_agendados_hoje = len(agendados_fut) + len(agendados_fer) + len(agendados_mod)
+    
     conn = autoviral_brain.get_conn()
     cur = conn.cursor()
-    
-    # Top 2 Vídeos Futebol
-    cur.execute("SELECT titulo, views FROM metricas_youtube WHERE canal = 'futebol' ORDER BY views DESC LIMIT 2")
-    top_fut = cur.fetchall()
-    
-    # Top 2 Peças Moda
-    cur.execute("SELECT titulo, views FROM metricas_youtube WHERE canal = 'moda' ORDER BY views DESC LIMIT 2")
-    top_mod = cur.fetchall()
     
     # Produção 24h
     cur.execute("SELECT COUNT(*) FROM videos_gerados WHERE criado_em >= datetime('now', '-1 day')")
@@ -166,79 +219,68 @@ def formatar_relatorio_executivo() -> str:
         pass
 
     linhas = [
-        "📊 *RELATÓRIO DIÁRIO DE AUDIÊNCIA & REDE MULTICANAIS*",
+        "📊 *RELATÓRIO DIÁRIO DE AUDIÊNCIA & GRADE MULTICANAL*",
         f"📅 _{agora}_\n",
         
-        f"⚽ *Canal Futebol:* {dados_fut['titulo']} (@FutebolInvisivelOficial)",
-        f"• *Inscritos:* `{dados_fut['inscritos']}` inscritos",
-        f"• *Visualizações Totais:* `{dados_fut['views_totais']:,}` views".replace(",", "."),
-        f"• *Vídeos no Ar:* `{dados_fut['videos_totais']}` vídeos",
-        f"• *Termômetro do Canal:* {dados_fut['termometro']}",
-        f"• *Tendência:* {dados_fut['tendencia']}",
-        "• *Retenção Média Estimada:* `~72% a 85%` (Shorts) | `48%` (Documentários)",
-        "🔥 *Vídeos com Mais Retenção:*"
+        f"⏰ *GRADE DE PUBLICAÇÕES AGENDADAS PARA HOJE ({hoje_fmt}):*",
+        f"Total programado: `{total_agendados_hoje}` vídeos\n"
     ]
-    for tf in top_fut:
-        tit = tf["titulo"][:40] + "..." if len(tf["titulo"]) > 40 else tf["titulo"]
-        linhas.append(f"  └ 🏆 _{tit}_ (`{tf['views']} views`)")
+    
+    # Bloco Futebol
+    linhas.append("⚽ *Canal Futebol Invisível:*")
+    if agendados_fut:
+        for it in agendados_fut:
+            tit_resumido = it["titulo"][:55] + ("..." if len(it["titulo"]) > 55 else "")
+            linhas.append(f"  • 🕒 `{it['horario_cv']} (CV)` / `{it['horario_utc']} (UTC)`")
+            linhas.append(f"    └ 🎬 _{tit_resumido}_")
+    else:
+        linhas.append("  • _Nenhum vídeo agendado para hoje (esteira em maturação)._")
+    linhas.append("")
+
+    # Bloco FERGIL
+    linhas.append("💼 *Canal FERGIL (Tech & Negócios):*")
+    if agendados_fer:
+        for it in agendados_fer:
+            tit_resumido = it["titulo"][:55] + ("..." if len(it["titulo"]) > 55 else "")
+            linhas.append(f"  • 🕒 `{it['horario_cv']} (CV)` / `{it['horario_utc']} (UTC)`")
+            linhas.append(f"    └ 🎬 _{tit_resumido}_")
+    else:
+        linhas.append("  • _Nenhum vídeo agendado para hoje._")
+    linhas.append("")
+
+    # Bloco Moda
+    linhas.append("👗 *Canal Moda (Alana Cruz):*")
+    if agendados_mod:
+        for it in agendados_mod:
+            tit_resumido = it["titulo"][:55] + ("..." if len(it["titulo"]) > 55 else "")
+            linhas.append(f"  • 🕒 `{it['horario_cv']} (CV)` / `{it['horario_utc']} (UTC)`")
+            linhas.append(f"    └ 🎬 _{tit_resumido}_")
+    else:
+        linhas.append("  • _Nenhum vídeo agendado para hoje (novas peças na fila)._")
+    linhas.append("")
 
     linhas.extend([
+        "📈 *MÉTRICAS & STATUS DOS CANAIS:*",
+        f"• *Futebol Invisível:* `{dados_fut['inscritos']}` inscritos | `{dados_fut['views_totais']:,}` views | {dados_fut['termometro']}".replace(",", "."),
+        f"• *FERGIL:* `{dados_fer['inscritos']}` inscritos | `{dados_fer['views_totais']:,}` views | {dados_fer['termometro']}".replace(",", "."),
+        f"• *Moda Feminina:* `{dados_mod['inscritos']}` inscritos | `{dados_mod['views_totais']:,}` views | {dados_mod['termometro']}".replace(",", "."),
         "",
-        f"👗 *Canal Moda:* {dados_mod['titulo']} (@AlanaCruzOficial)",
-        f"• *Inscritos:* `{dados_mod['inscritos']}` inscritos",
-        f"• *Visualizações Totais:* `{dados_mod['views_totais']:,}` views".replace(",", "."),
-        f"• *Vídeos no Ar:* `{dados_mod['videos_totais']}` vídeos",
-        f"• *Termômetro do Canal:* {dados_mod['termometro']}",
-        f"• *Tendência:* {dados_mod['tendencia']}",
-        "• *Retenção Média Estimada:* `~68% a 80%` (Shorts)",
-        "✨ *Peças com Mais Conversão:*"
-    ])
-    for tm in top_mod:
-        tit_m = tm["titulo"][:40] + "..." if len(tm["titulo"]) > 40 else tm["titulo"]
-        linhas.append(f"  └ 💎 _{tit_m}_ (`{tm['views']} views`)")
-
-    linhas.extend([
-        "",
-        f"💼 *Canal High-CPM:* {dados_fer['titulo']} (@FERGIL)",
-        f"• *Inscritos:* `{dados_fer['inscritos']}` inscritos",
-        f"• *Visualizações Totais:* `{dados_fer['views_totais']:,}` views".replace(",", "."),
-        f"• *Vídeos no Ar:* `{dados_fer['videos_totais']}` vídeos",
-        f"• *Termômetro do Canal:* {dados_fer['termometro']}",
-        f"• *Tendência:* {dados_fer['tendencia']}",
-        "• *Foco Editorial:* Podcasts, Negócios, Dinheiro & IA"
-    ])
-
-    linhas.extend([
-        "",
-        "🛍️ *Afiliados & Operação 24h:*",
-        f"• *Vendas / Comissões:* `{len(vendas)}` pedidos registrados",
-        f"• *Vídeos Produzidos (24h):* `{novos_24h}` vídeos novos",
-        "• *Robô Guardião:* 🟢 Sem vídeos duplicados | 100% comentários ativos"
-    ])
-
-    try:
-        from app.services import video_scheduler
-        mat_fut = video_scheduler.auditar_esteira_e_maturacao("futebol")
-        prontos_fut = len(mat_fut.get("prontos_para_publicar", []))
-        linhas.extend([
-            "",
-            "🎯 *Esteira de Maturação & Algoritmo (Pré-Lançamento):*",
-            f"• *Vídeos 100% Maturados (Processados no YouTube):* `{prontos_fut}` vídeos prontos",
-            "• *Horários de Pico Recomendados:* `12:30` | `17:30` | `20:30` (Almoço, Saída do Trabalho e Noturno)"
-        ])
-    except Exception:
-        pass
-
-    linhas.extend([
+        "🛍️ *Afiliados & Operação:*",
+        f"• *Vendas / Pedidos:* `{len(vendas)}` registrados",
+        f"• *Vídeos Produzidos (24h):* `{novos_24h}` vídeos gerados",
+        f"• *Tag Amazon:* `edmilsonferg-20` ativa nos comentários",
         "",
         "🚀 _MoneyPrinter Turbo Intelligence Engine_"
     ])
 
     return "\n".join(linhas)
 
-def executar_envio_relatorio_diario() -> bool:
+def disparar_relatorio_telegram_agora() -> bool:
     texto = formatar_relatorio_executivo()
     return enviar_mensagem_telegram(texto)
+
+def executar_envio_relatorio_diario() -> bool:
+    return disparar_relatorio_telegram_agora()
 
 if __name__ == "__main__":
     print(formatar_relatorio_executivo())
