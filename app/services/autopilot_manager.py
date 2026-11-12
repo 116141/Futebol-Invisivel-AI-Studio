@@ -74,42 +74,71 @@ def disparar_producao_video_futebol(is_doc: bool = False, titulo_especifico: str
         return False
 
 def disparar_producao_video_moda():
-    """Gera autonomamente um vídeo de moda/afiliado."""
+    """Gera autonomamente um vídeo de moda/afiliado com busca multi-categoria e rotação inteligente."""
     try:
         import app_render_studio
         # PESQUISA FOCADA NO PÚBLICO REAL DE ALANA CRUZ (70% MULHERES 55+ ANOS):
-        # Elegância madura, vestidos midi confortáveis, linho/algodão, conjuntos chiques e bolsas de couro
-        # Motor de Inteligência Sazonal: Climatização e parâmetros autônomos por estação do ano
+        # Elegância madura, vestidos midi confortáveis, linho/algodão, conjuntos chiques, casacos e bolsas
         from app.services import seasonal_trend_engine
         contexto_sazonal = seasonal_trend_engine.detectar_contexto_sazonal()
-        termo_escolhido = seasonal_trend_engine.obter_termo_busca_inteligente()
-        logger.info(f"🌿 [MODA INTELIGENTE] Estação Ativa: {contexto_sazonal['rotulo_clima']} | Evento: {contexto_sazonal['evento_especial'] or 'Padrão'} | Termo: '{termo_escolhido}'")
+        termo_sazonal = seasonal_trend_engine.obter_termo_busca_inteligente()
         
-        produtos = aliexpress_affiliate.search_winning_fashion_products(
-            keywords=termo_escolhido,
-            page_size=25,
-            only_with_video=True
-        )
-        if not produtos:
-            produtos = aliexpress_affiliate.search_winning_fashion_products(
-                keywords="vestido midi elegante soltinho",
-                page_size=25,
-                only_with_video=False
-            )
-        if not produtos:
-            return False
+        # Pool diversificado de categorias para garantir que nunca pare se um nicho esgotar
+        termos_pesquisa = [
+            termo_sazonal,
+            "vestido feminino elegante",
+            "bolsa feminina transversal luxo",
+            "casaco sobretudo feminino elegante",
+            "sapato salto bloco conforto feminino",
+            "camisa seda feminina social",
+            "cardigan feminino elegante outono",
+            "conjunto linho feminino alfaiataria",
+            "vestido midi elegante soltinho"
+        ]
         
-        # Filtra produtos já produzidos previamente (em qualquer estado, incluindo ARQUIVADO)
+        # Elimina duplicados mantendo a ordem de prioridade
+        termos_unicos = []
+        for t in termos_pesquisa:
+            if t and t not in termos_unicos:
+                termos_unicos.append(t)
+                
         candidatos_validos = []
-        for p_cand in produtos:
-            tit_cand = p_cand.get("short_title") or aliexpress_affiliate.limpiar_titulo_moda(p_cand.get("raw_title", "Achadinho Elegante Moda Feminina"))
-            pid_cand = str(p_cand.get("product_id", ""))
-            url_cand = p_cand.get("short_link") or p_cand.get("product_detail_url", "")
-            if not autoviral_brain.verificar_video_duplicado(tit_cand, canal="moda", fonte_url=url_cand, product_id=pid_cand):
-                candidatos_validos.append((p_cand, tit_cand))
+        termo_usado = None
+        
+        for termo in termos_unicos:
+            logger.info(f"🌿 [MODA INTELIGENTE] Testando catálogo para o termo: '{termo}'...")
+            produtos = aliexpress_affiliate.search_winning_fashion_products(
+                keywords=termo,
+                page_size=25,
+                only_with_video=True
+            )
+            # Se não encontrar com vídeo, tenta produtos com fotos de alta qualidade
+            if not produtos:
+                produtos = aliexpress_affiliate.search_winning_fashion_products(
+                    keywords=termo,
+                    page_size=25,
+                    only_with_video=False
+                )
+                
+            if not produtos:
+                continue
+                
+            for p_cand in produtos:
+                tit_cand = p_cand.get("short_title") or aliexpress_affiliate.limpiar_titulo_moda(p_cand.get("raw_title", "Achadinho Elegante Moda Feminina"))
+                pid_cand = str(p_cand.get("product_id", ""))
+                url_cand = p_cand.get("short_link") or p_cand.get("product_detail_url", "")
+                if not autoviral_brain.verificar_video_duplicado(tit_cand, canal="moda", fonte_url=url_cand, product_id=pid_cand):
+                    candidatos_validos.append((p_cand, tit_cand))
+                    
+            if candidatos_validos:
+                termo_usado = termo
+                logger.success(f"👗 [MODA INTELIGENTE] Encontrados {len(candidatos_validos)} produtos inéditos para '{termo}'!")
+                break
+            else:
+                logger.info(f"⚠️ [MODA INTELIGENTE] Todos os produtos de '{termo}' já foram produzidos. Avançando para próxima categoria...")
 
         if not candidatos_validos:
-            logger.info("Todos os produtos de moda pesquisados já foram produzidos anteriormente.")
+            logger.warning("Todos os produtos de moda pesquisados em todas as categorias já foram produzidos anteriormente.")
             return False
 
         prod, titulo = random.choice(candidatos_validos)
@@ -141,7 +170,7 @@ def disparar_producao_video_moda():
             daemon=True
         )
         t.start()
-        logger.info(f"Produção Moda iniciada com sucesso na tarefa {task_id}")
+        logger.info(f"Produção Moda iniciada com sucesso na tarefa {task_id} (Termo: {termo_usado})")
         return True
     except Exception as e:
         logger.error(f"Erro na produção de vídeo moda: {e}")
