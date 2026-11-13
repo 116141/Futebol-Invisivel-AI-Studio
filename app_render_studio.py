@@ -607,10 +607,11 @@ def processar_video(task_id: str, titulo: str, tipo: str, uploaded_image_paths: 
                     4. CHAMADA FINAL ESTRATÉGICA: Nos últimos 20 segundos, pergunte a opinião do torcedor sobre o futuro do clube/jogador, convoque para deixar o like e se inscrever no canal para os dossiês semanais.
 
                     ESTRUTURA COMPLETA EM 4 ATOS (MÍNIMO 450 PALAVRAS):
+                    - GANCHO NOS PRIMEIROS 15 SEGUNDOS (REGRA DE OURO DO ALGORITMO): PROIBIDO cumprimentos lentos ("Olá torcedor", "Bem-vindos ao canal"). Comece no SEGUNDO ZERO direto no clímax da reunião secreta, na frase de choque do vestiário ou na pergunta provocativa que prende quem veio dos Shorts!
                     - ATO 1: O INCÊNDIO / O FATO EXPLOSIVO (80 a 100 palavras): Abra direto no acontecimento impactante, apresentando o protagonista e o choque no mercado.
                     - ATO 2: AS RAÍZES E O CONFLITO NOS BASTIDORES (150 a 200 palavras): Como o clube ou jogador chegou a esse ponto? As tensões internas, os desentendimentos táticos e o que a grande mídia escondeu.
                     - ATO 3: O IMPACTO EM CAMPO E OS NÚMEROS REAIS (150 a 200 palavras): As atuações recentes, gols, assistências, a reação dos companheiros e do treinador.
-                    - ATO 4: O VEREDITO, O FUTURO E DEBATE COM O PÚBLICO (70 a 100 palavras): O desfecho da investigação, pergunta reflexiva para os comentários e chamada de inscrição.
+                    - ATO 4: O VEREDITO, O FUTURO E DEBATE COM O PÚBLICO (70 a 100 palavras): O desfecho fechado da história (começo, meio e fim), pergunta reflexiva para os comentários e chamada de inscrição.
 
                     Retorne APENAS o texto falado da narração pura, sem [Cena], sem [Narrador], sem emojis.
                     """
@@ -628,12 +629,12 @@ def processar_video(task_id: str, titulo: str, tipo: str, uploaded_image_paths: 
                     LEIS ABSOLUTAS DO SHORT (68 A 82 PALAVRAS):
                     1. LINGUAGEM SIMPLES E CLARA: Sem palavras técnicas difíceis. Use palavras simples que qualquer torcedor entende de primeira.
                     2. FATO E NÚMERO NA PRIMEIRA FRASE: Abra direto nos primeiros 4 segundos com os nomes reais e o número incontestável (ex: os 14 gols de Yamal batendo Mbappé).
-                    3. OPINIÃO + LIKE E INSCRIÇÃO NO FINAL: Feche perguntando a opinião do torcedor e dizendo: 'Deixe o like, comente sua opinião e se inscreva no canal para ficar por dentro de tudo no mundo do futebol!'
+                    3. PONTE PARA O DOCUMENTÁRIO LONGO + INSCRIÇÃO NO FINAL: Como os Shorts geram 99,5% do tráfego do canal, feche conectando o espectador ao vídeo longo: 'Quer ver os bastidores completos dessa história? Clique no vídeo relacionado aqui embaixo, comente sua opinião e inscreva-se no canal!'
                     
                     ESTRUTURA DE 30 SEGUNDOS:
                     - 0 a 4s: A bomba inicial dita com clareza e empolgação.
                     - 5 a 20s: A explicação simples do que aconteceu e os números reais.
-                    - 21 a 32s: Pergunta de opinião + pedido claro para curtir e se inscrever para ficar atualizado.
+                    - 21 a 32s: Chamada direta apontando para o Documentário Completo no Vídeo Relacionado + inscrição.
 
                     Retorne APENAS a narração falada pura, sem marcações de cena, sem emojis.
                     """

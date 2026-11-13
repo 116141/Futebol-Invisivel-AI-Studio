@@ -48,7 +48,11 @@ def extrair_ou_rejeitar_pauta_vaga(titulo: str, canal: str = "futebol") -> dict:
     "{titulo}"
 
     REGRAS DE OURO:
-    - No Futebol: Proibido manchetes vagas do tipo 'um jogador', 'uma promessa', 'um técnico', 'uma joia' sem saber QUEM É.
+    - No Futebol:
+      1. Proibido manchetes vagas do tipo 'um jogador', 'uma promessa', 'um técnico', 'uma joia' sem saber QUEM É.
+      2. PROIBIDO REPERCUSSÃO FRIA DE COMENTARISTA SOLTA (ex: 'Scholes diz que...', 'Ex-jogador opina que...', 'Comentarista fala sobre...').
+         Vídeos sobre opiniões soltas de ex-jogadores tiveram 0% de cliques nos dados reais do YouTube Studio!
+         APROVE APENAS se houver um CONFLITO DIRETO, DECISÃO DE MERCADO/CONTRATO, BASTIDOR DE VESTIÁRIO ou CRISE REAL em clubes/seleções!
     - No Negócios/Fergil: Proibido temas vagos de autoajuda sem citar empresa, figura ou método econômico concreto.
 
     Responda EXCLUSIVAMENTE em formato JSON com as chaves:
@@ -92,19 +96,27 @@ def gerar_titulo_viral_outlier_futebol(titulo_bruto: str, is_doc: bool = False) 
     "{t_limpo}"
     Formato: {"Vídeo Longo Documentário (16:9)" if is_doc else "YouTube Shorts (9:16)"}
     
-    PADRÕES DE TÍTULOS QUE MAIS VIRALIZARAM NO NOSSO NICHO ESTA SEMANA:
-    1. Conflito de Personalidades: "Henry perdeu a paciência com...", "Thierry Henry estava CERTO sobre Estêvão... E NINGUÉM OUVIU"
-    2. Decisão Radical / Bastidor: "Endrick tomou uma DECISÃO...", "A Decisão do Real Madrid: O...", "Demitido às 4h da manhã!"
-    3. Cobrança / Explosão: "INACREDITÁVEL! ABEL CRITICA IMPRENSA...", "ANCELOTTI TÁ DE BRINCADEIRA NA SELEÇÃO!"
-    4. Mercado da Bola Direto: "A LISTA SECRETA DO FLAMENGO PARA 2027!", "BAYERN QUER... | ENDRICK DECIDE SAIR!"
+    PADRÕES DE TÍTULOS QUE MAIS VIRALIZARAM NO NOSSO CANAL E NICHO (COMPROVADO PELO YOUTUBE STUDIO):
+    - NOSSO CAMPEÃO DE CTR (11,35% DE CLIQUES EM VÍDEO LONGO):
+      "«PAPELÃO RIDÍCULO!» O Que Aconteceu na Reunião Secreta que Derrubou o Técnico do Flamengo"
+    - OUTROS OUTLIERS DO NICHO:
+      1. Mistério / Plano Secreto (Para Vídeo Longo 16:9):
+         - Em vez de entregar a notícia toda ("Scholes diz que Haaland vai para o Barça"), crie LACUNA DE MISTÉRIO:
+         - Exemplo: "«BASTIDOR EXPLOSIVO!» O Plano Secreto Para Tirar Haaland do Manchester City"
+         - Exemplo: "«ACABOU A PACIÊNCIA!» O Que Aconteceu no Vestiário do Real Madrid com Endrick"
+      2. Conflito Direto / Alerta:
+         - "Thierry Henry Estava CERTO Sobre Estêvão... E NINGUÉM OUVIU"
+         - "A Lista Secreta de Dispensas que Chocou o Vestiário do Flamengo"
     
     REGRAS OBRIGATÓRIAS:
-    - Mantenha 100% da verdade factual da manchete original (MESMOS jogadores e clubes), mas reescreva com IMPACTO EMOCIONAL, CURIOSIDADE e TENSÃO.
-    - NUNCA use frases frias de tabela como "amplia invencibilidade e mantém ponta do Grupo C".
-    - Destaque 1 ou 2 palavras-chave de alto impacto em MAIÚSCULAS (ex: DECISÃO, CERTO, NINGUÉM OUVIU, BASTIDORES, LISTA SECRETA).
-    - Máximo de 68 caracteres (para não truncar no celular, já que 82,3% do nosso público assiste pelo Telemóvel!).
+    - Mantenha 100% da verdade factual da manchete original (MESMOS jogadores e clubes).
+    - NUNCA adicione sufixos robóticos como "| Documentário Investigativo" no título.
+    - NUNCA faça um título que pareça nota fria de jornal ("Fulano aponta Ciclano...", "Time vence e mantém ponta...").
+    - Se for Vídeo Longo Documentário (16:9), use preferencialmente a estrutura campeã de 11,35% CTR:
+      «FRASE DE IMPACTO CURTA!» + O Que Realmente Aconteceu / O Plano Secreto / A Reunião que Mudou [Protagonista/Clube]
+    - Máximo de 72 caracteres para leitura rápida no telemóvel.
     - Não adicione hashtags no título (o sistema adiciona depois se for Short).
-    - Responda APENAS com o título final puro, sem aspas e sem explicações.
+    - Responda APENAS com o título final puro, sem explicações.
     """
     try:
         cfg_groq = _obter_groq_config()
