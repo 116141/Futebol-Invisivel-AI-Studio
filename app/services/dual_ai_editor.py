@@ -97,16 +97,15 @@ def gerar_titulo_viral_outlier_futebol(titulo_bruto: str, is_doc: bool = False) 
     Formato: {"Vídeo Longo Documentário (16:9)" if is_doc else "YouTube Shorts (9:16)"}
     
     PADRÕES DE TÍTULOS QUE MAIS VIRALIZARAM NO NOSSO CANAL E NICHO (COMPROVADO PELO YOUTUBE STUDIO):
-    - NOSSO CAMPEÃO DE CTR (11,35% DE CLIQUES EM VÍDEO LONGO):
-      "«PAPELÃO RIDÍCULO!» O Que Aconteceu na Reunião Secreta que Derrubou o Técnico do Flamengo"
-    - OUTROS OUTLIERS DO NICHO:
-      1. Mistério / Plano Secreto (Para Vídeo Longo 16:9):
-         - Em vez de entregar a notícia toda ("Scholes diz que Haaland vai para o Barça"), crie LACUNA DE MISTÉRIO:
-         - Exemplo: "«BASTIDOR EXPLOSIVO!» O Plano Secreto Para Tirar Haaland do Manchester City"
-         - Exemplo: "«ACABOU A PACIÊNCIA!» O Que Aconteceu no Vestiário do Real Madrid com Endrick"
-      2. Conflito Direto / Alerta:
-         - "Thierry Henry Estava CERTO Sobre Estêvão... E NINGUÉM OUVIU"
-         - "A Lista Secreta de Dispensas que Chocou o Vestiário do Flamengo"
+    - FÓRMULA 1 (Dossiê Direto & Curiosidade Pura < 48 chars - APROVADA PELO YOUTUBE STUDIO):
+      "A Verdade Por Trás da Queda de Vini Jr."
+      "O Plano Secreto Para Tirar Haaland do City"
+      "Por Que Haaland no Barça Deixou a Inglaterra em Pânico"
+    - FÓRMULA 2 (Nosso Campeão de 11,35% CTR):
+      "«PAPELÃO RIDÍCULO!» A Reunião Secreta que Derrubou o Técnico"
+    - FÓRMULA 3 (Conflito Direto / Alerta):
+      "Thierry Henry Estava CERTO Sobre Estêvão... E NINGUÉM OUVIU"
+      "A Lista Secreta que Chocou o Vestiário do Flamengo"
     
     REGRAS OBRIGATÓRIAS:
     - Mantenha 100% da verdade factual da manchete original (MESMOS jogadores e clubes).
@@ -137,21 +136,21 @@ def gerar_titulo_viral_outlier_futebol(titulo_bruto: str, is_doc: bool = False) 
 
 def gerar_sugestao_thumbnail_complementar(titulo_final: str, canal: str = "futebol") -> str:
     """
-    Gera a sugestão de Miniatura (Thumbnail) com 2 a 4 palavras de alto contraste que COMPLEMENTAM
-    o título sem repeti-lo (Regra 4 do YouTube Studio / skill yt-package).
+    Gera os 3 Conceitos de Miniatura (Thumbnail) com 2 a 3 palavras de alto contraste que COMPLEMENTAM
+    o título sem repeti-lo (padrão oficial do YouTube Studio: Foco Dramático, Dossiê Confidencial e Contraste Antes/Depois).
     """
     prompt = f"""
-    Você é o Especialista em Miniaturas (Thumbnails) de Alto CTR do canal '{canal.upper()}'.
+    Você é o Diretor de Arte de Miniaturas (Thumbnails) de Alto CTR do canal '{canal.upper()}'.
     Título do vídeo (< 55 caracteres): "{titulo_final}"
 
     REGRAS DO YOUTUBE STUDIO PARA MINIATURA VENCEDORA:
-    1. O texto na miniatura NUNCA repete o título; ele COMPLEMENTA com 2 a 3 palavras curtas de choque ou dúvida!
-       (Exemplos: "1 BILHÃO?!", "ADEUS CITY?", "FOI TRAÍDO?!", "ACABOU TUDO!", "LISTA VAZOU!").
-    2. Descreva em 1 linha a cena visual de alto contraste humano (expressão facial tensa do protagonista + elemento em destaque).
+    1. O texto na miniatura NUNCA repete o título; ele COMPLEMENTA com 2 a 3 palavras curtas em amarelo/branco!
+    2. Crie 3 opções rápidas baseadas nos 3 arquétipos campeões do YouTube Studio:
+       - Opção 1 (Foco Dramático de Investigação): Close-up no rosto sério/tenso do protagonista + texto de revelação (ex: "INVESTIGAÇÃO INTERNA", "BASTIDOR SECRETO").
+       - Opção 2 (Pôster de Dossiê Confidencial): Protagonista sob holofotes frios + escudo do clube/empresa + texto curto de impacto (ex: "A QUEDA", "1 BILHÃO?!", "ADEUS?!").
+       - Opção 3 (Contraste Visual Antes/Depois): Contraste de momentos + pergunta curta de 2-3 palavras (ex: "O QUE MUDOU?", "FOI TRAÍDO?").
 
-    Responda em apenas 2 linhas curtas neste formato exato:
-    TEXTO NA CAPA (2-3 palavras): [Texto curto de impacto]
-    CENA VISUAL: [Descrição rápida da foto/expressão]
+    Responda de forma enxuta e direta com as 3 opções prontas para o designer criar a capa.
     """
     try:
         cfg_groq = _obter_groq_config()
@@ -160,7 +159,11 @@ def gerar_sugestao_thumbnail_complementar(titulo_final: str, canal: str = "futeb
             return resp.strip()
     except Exception:
         pass
-    return "TEXTO NA CAPA (2-3 palavras): BASTIDOR SECRETO!\nCENA VISUAL: Rosto do protagonista com expressão séria e fundo contrastante."
+    return (
+        "• Opção 1 (Foco Dramático): Rosto do protagonista em close-up sério | Texto: INVESTIGAÇÃO INTERNA\n"
+        "• Opção 2 (Dossiê Confidencial): Protagonista sob luzes do estádio + escudo | Texto: A QUEDA\n"
+        "• Opção 3 (Contraste): Antes vs. Agora | Texto: O QUE MUDOU?"
+    )
 
 def auditar_roteiro_com_groq(roteiro: str, titulo: str, canal: str, is_doc: bool) -> dict:
     """
