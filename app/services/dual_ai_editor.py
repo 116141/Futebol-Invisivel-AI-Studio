@@ -74,6 +74,50 @@ def extrair_ou_rejeitar_pauta_vaga(titulo: str, canal: str = "futebol") -> dict:
     # Fallback permissivo seguro se a rede oscilar
     return {"valido": True, "protagonista": titulo, "motivo": "Fallback operacional"}
 
+def gerar_titulo_viral_outlier_futebol(titulo_bruto: str, is_doc: bool = False) -> str:
+    """
+    Transforma uma manchete fria de jornal em um título magnético estilo 'Outlier'
+    alinhado aos padrões vencedores do YouTube Studio (aba Investigação):
+    - Conflito humano / Bastidor explosivo
+    - Sem parecer manchete burocrática de portal
+    """
+    # Limpa sufixos de portal caso ainda existam
+    t_limpo = re.sub(r'\s*-\s*(ge|UOL|ESPN|Lance!?|TNT Sports|Jovem Pan).*$', '', titulo_bruto, flags=re.IGNORECASE).strip()
+    
+    prompt = f"""
+    Você é o Estrategista de Títulos Virais (Outliers) do canal 'Futebol Invisível' no YouTube.
+    Nosso público é 73,5% do Brasil e 8,2% de Portugal (homens de 25 a 64+ anos).
+    
+    Manchete original capturada:
+    "{t_limpo}"
+    Formato: {"Vídeo Longo Documentário (16:9)" if is_doc else "YouTube Shorts (9:16)"}
+    
+    PADRÕES DE TÍTULOS QUE MAIS VIRALIZARAM NO NOSSO NICHO ESTA SEMANA:
+    1. Conflito de Personalidades: "Henry perdeu a paciência com...", "Thierry Henry estava CERTO sobre Estêvão... E NINGUÉM OUVIU"
+    2. Decisão Radical / Bastidor: "Endrick tomou uma DECISÃO...", "A Decisão do Real Madrid: O...", "Demitido às 4h da manhã!"
+    3. Cobrança / Explosão: "INACREDITÁVEL! ABEL CRITICA IMPRENSA...", "ANCELOTTI TÁ DE BRINCADEIRA NA SELEÇÃO!"
+    4. Mercado da Bola Direto: "A LISTA SECRETA DO FLAMENGO PARA 2027!", "BAYERN QUER... | ENDRICK DECIDE SAIR!"
+    
+    REGRAS OBRIGATÓRIAS:
+    - Mantenha 100% da verdade factual da manchete original (MESMOS jogadores e clubes), mas reescreva com IMPACTO EMOCIONAL, CURIOSIDADE e TENSÃO.
+    - NUNCA use frases frias de tabela como "amplia invencibilidade e mantém ponta do Grupo C".
+    - Destaque 1 ou 2 palavras-chave de alto impacto em MAIÚSCULAS (ex: DECISÃO, CERTO, NINGUÉM OUVIU, BASTIDORES, LISTA SECRETA).
+    - Máximo de 68 caracteres (para não truncar no celular, já que 82,3% do nosso público assiste pelo Telemóvel!).
+    - Não adicione hashtags no título (o sistema adiciona depois se for Short).
+    - Responda APENAS com o título final puro, sem aspas e sem explicações.
+    """
+    try:
+        cfg_groq = _obter_groq_config()
+        resp = llm._generate_response(prompt=prompt, app_config=cfg_groq)
+        if resp and not resp.strip().startswith("Error:") and 15 <= len(resp.strip()) <= 90:
+            novo_t = resp.strip().strip('"').strip("'")
+            novo_t = re.sub(r'[\<\>\"]', '', novo_t)
+            return novo_t
+    except Exception as e:
+        logger.warning(f"Aviso ao gerar título outlier futebol: {e}")
+
+    return t_limpo
+
 def auditar_roteiro_com_groq(roteiro: str, titulo: str, canal: str, is_doc: bool) -> dict:
     """
     IA 2 (Groq) atua como Juiz e Auditor de Retenção do roteiro escrito pelo Gemini.

@@ -1422,21 +1422,25 @@ def processar_video(task_id: str, titulo: str, tipo: str, uploaded_image_paths: 
                 )
                 post_coment = f"🛍️ Meninas, o link oficial com cupom de desconto promocional está aqui:\n👉 {link_display} 💕"
             elif is_doc:
-                post_titulo = f"{titulo[:85]} | Documentário Investigativo"
+                from app.services import dual_ai_editor
+                titulo_outlier = dual_ai_editor.gerar_titulo_viral_outlier_futebol(titulo, is_doc=True)
+                post_titulo = f"{titulo_outlier[:85]}"
                 tags_virais = (
-                    "Futebol Invisível, Documentário Futebol, CazéTV, TNT Sports Brasil, Globo Esporte, "
-                    "Ge Globo, ESPN Brasil, Dossiê Futebol, Bastidores do Futebol, Investigação Futebol, "
-                    "Brasileirão, Champions League, Lamine Yamal, Vinicius Junior, Cristiano Ronaldo, Lionel Messi, Real Madrid, Barcelona"
+                    "Futebol Invisível, Goal Fut, Futirinhas, Arena News, Tode, FUTFLIX, CazéTV, TNT Sports Brasil, "
+                    "Globo Esporte, Ge Globo, ESPN Brasil, Jovem Pan Esportes, Endrick, Estêvão, Vini Jr, Ancelotti, "
+                    "Flamengo, Filipe Luís, Palmeiras, Abel Ferreira, Corinthians, Real Madrid, Barcelona, Mercado da Bola"
                 )
                 from app.services import smart_metadata_cleaner
-                post_desc = smart_metadata_cleaner.gerar_descricao_inteligente(titulo, canal="futebol", tipo="doc")
-                post_coment = "🔥 Deixe sua opinião sobre esta investigação nos comentários e INSCREVA-SE no canal para os próximos dossiês! 👇⚽"
+                post_desc = smart_metadata_cleaner.gerar_descricao_inteligente(titulo_outlier, canal="futebol", tipo="doc")
+                post_coment = "🔥 Deixe sua opinião sincera nos comentários e INSCREVA-SE no canal para não perder o próximo episódio desta investigação! 👇⚽"
             else:
-                post_titulo = f"{titulo[:62]}! #futebol #futebolbrasileiro #shorts"
+                from app.services import dual_ai_editor
+                titulo_outlier_sh = dual_ai_editor.gerar_titulo_viral_outlier_futebol(titulo, is_doc=False)
+                post_titulo = f"{titulo_outlier_sh[:65]} #futebol #shorts"
                 tags_virais = (
-                    "Futebol Invisível, BIDO FC, Central do futebol, Vernerzinho, Futebox, Pwzzo, Kauan Lopo, Ike Futebol, Fabioh, "
-                    "Minuto 93, Goal Fut, Jovem Pan Esportes, CazéTV, TNT Sports Brasil, futebol brasileiro, Brasileirão, "
-                    "Corinthians, Flamengo, Palmeiras, Santos, Fluminense, Lamine Yamal, Vinicius Junior, Cristiano Ronaldo, Lionel Messi, shorts futebol"
+                    "Futebol Invisível, Verner, Driblaê, rosarinho fc, Insiderfut01, KARLUS DANIEU, BIDO FC, "
+                    "Central do futebol, Vernerzinho, Futebox, Minuto 93, Goal Fut, Jovem Pan Esportes, CazéTV, "
+                    "Endrick, Estêvão, Vini Jr, Raphinha, Flamengo, Palmeiras, Corinthians, Real Madrid, shorts futebol"
                 )
                 post_desc = (
                     f"🚨 Bastidores explosivos: {titulo}!\n\n"

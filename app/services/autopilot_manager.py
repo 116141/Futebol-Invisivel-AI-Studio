@@ -582,17 +582,32 @@ def executar_ciclo_autopiloto():
         except Exception as e_esc:
             logger.warning(f"Aviso no escoamento de fila ({c_nome}): {e_esc}")
 
-    # 6. PRODUÇÃO FUTEBOL (Dupla: Doc + Short)
+    # 6. PRODUÇÃO FUTEBOL (Dupla: Doc + Short com Cooldown de Protagonista para Diversidade nos 5 Pilares)
     max_b = AUTOPILOT_CONFIG.get("max_backlog_por_canal", 10)
     try:
         if autoviral_brain.contar_backlog_canal("futebol") >= max_b:
             logger.warning(f"🛑 [FUTEBOL] Backlog de uploads atingiu o limite ({max_b} vídeos pendentes). Produção pausada até escoamento.")
         else:
+            # Cooldown de protagonista no Futebol: evita produzir 4 vídeos seguidos do mesmo jogador (ex: Haaland)
+            conn_f = autoviral_brain.get_conn()
+            cur_f = conn_f.cursor()
+            cur_f.execute("SELECT titulo FROM videos_gerados WHERE canal = 'futebol' ORDER BY rowid DESC LIMIT 6")
+            ultimos_fut = [r["titulo"].lower() for r in cur_f.fetchall()]
+            conn_f.close()
+
+            cooldown_fut = set()
+            for nome_f in ["haaland", "endrick", "estêvão", "estevao", "vini jr", "mbappé", "mbappe", "flamengo", "palmeiras", "corinthians", "ancelotti", "neymar"]:
+                if sum(1 for tf in ultimos_fut[:4] if nome_f in tf) >= 2:
+                    cooldown_fut.add(nome_f)
+                    logger.info(f"⚽ [FUTEBOL DIVERSIDADE] '{nome_f.upper()}' já teve 2 vídeos recentes. Rotacionando para outro craque/clube!")
+
             noticias = autoviral_brain.buscar_noticias_futebol_tempo_real(max_results=20)
             from app.services import dual_ai_editor
             tema_dupla = ""
             for n in noticias:
                 tit = n.get("titulo", "")
+                if any(cf in tit.lower() for cf in cooldown_fut):
+                    continue
                 if not autoviral_brain.verificar_video_duplicado(tit, "futebol"):
                     # Filtro do Editor-Chefe (Groq): rejeita manchetes vagas sem protagonista definido!
                     pauta_audit = dual_ai_editor.extrair_ou_rejeitar_pauta_vaga(tit, canal="futebol")
