@@ -601,22 +601,53 @@ def executar_ciclo_autopiloto():
                     cooldown_fut.add(nome_f)
                     logger.info(f"⚽ [FUTEBOL DIVERSIDADE] '{nome_f.upper()}' já teve 2 vídeos recentes. Rotacionando para outro craque/clube!")
 
-            noticias = autoviral_brain.buscar_noticias_futebol_tempo_real(max_results=20)
-            from app.services import dual_ai_editor
+            # INTEGRAÇÃO FASE 1: RADAR DE OUTLIERS AUTÔNOMO
+            # Primeiro, consulta os canais concorrentes para detectar se há algum vídeo outlier bombando (Score >= 1.8x)
             tema_dupla = ""
-            for n in noticias:
-                tit = n.get("titulo", "")
-                if any(cf in tit.lower() for cf in cooldown_fut):
-                    continue
-                if not autoviral_brain.verificar_video_duplicado(tit, "futebol"):
-                    # Filtro do Editor-Chefe (Groq): rejeita manchetes vagas sem protagonista definido!
-                    pauta_audit = dual_ai_editor.extrair_ou_rejeitar_pauta_vaga(tit, canal="futebol")
-                    if pauta_audit.get("valido", True):
-                        tema_dupla = tit
-                        logger.success(f"Pauta APROVADA pelo Editor-Chefe para o piloto automático: '{tit}' (Protagonista: {pauta_audit.get('protagonista')})")
-                        break
-                    else:
-                        logger.warning(f"Pauta REJEITADA pelo Editor-Chefe (vaga ou sem protagonista): '{tit}' - Motivo: {pauta_audit.get('motivo')}")
+            try:
+                logger.info("📡 [RADAR OUTLIERS] Consultando concorrentes para capturar temas com explosão de visualizações...")
+                res_radar = autoviral_brain.espionar_canais_concorrentes(
+                    canais_handles=[
+                        "https://www.youtube.com/@ominuto93/shorts",
+                        "https://www.youtube.com/@ominuto93/videos",
+                        "https://www.youtube.com/@BIDOFC/shorts",
+                        "https://www.youtube.com/@goalfut/videos",
+                        "https://www.youtube.com/@IkeFutebol/shorts"
+                    ],
+                    multiplicador_minimo=1.8,
+                    max_amostra=10,
+                    max_dias_idade=7
+                )
+                for outl in res_radar.get("outliers", []):
+                    tit_out = outl.get("titulo", "")
+                    if any(cf in tit_out.lower() for cf in cooldown_fut):
+                        continue
+                    if not autoviral_brain.verificar_video_duplicado(tit_out, "futebol"):
+                        p_audit = dual_ai_editor.extrair_ou_rejeitar_pauta_vaga(tit_out, canal="futebol")
+                        if p_audit.get("valido", True):
+                            tema_dupla = tit_out
+                            logger.success(f"🔥 [RADAR OUTLIER CONFIRMADO] Tema capturado dos concorrentes ({outl.get('multiplicador_mediana')}x acima da média): '{tit_out}' (Protagonista: {p_audit.get('protagonista')})")
+                            break
+            except Exception as e_radar:
+                logger.warning(f"Aviso na verificação do Radar de Outliers: {e_radar}")
+
+            # Se não encontrou outlier recente dos concorrentes, busca as notícias em tempo real
+            if not tema_dupla:
+                noticias = autoviral_brain.buscar_noticias_futebol_tempo_real(max_results=20)
+                from app.services import dual_ai_editor
+                for n in noticias:
+                    tit = n.get("titulo", "")
+                    if any(cf in tit.lower() for cf in cooldown_fut):
+                        continue
+                    if not autoviral_brain.verificar_video_duplicado(tit, "futebol"):
+                        # Filtro do Editor-Chefe (Groq): rejeita manchetes vagas sem protagonista definido!
+                        pauta_audit = dual_ai_editor.extrair_ou_rejeitar_pauta_vaga(tit, canal="futebol")
+                        if pauta_audit.get("valido", True):
+                            tema_dupla = tit
+                            logger.success(f"Pauta APROVADA pelo Editor-Chefe para o piloto automático: '{tit}' (Protagonista: {pauta_audit.get('protagonista')})")
+                            break
+                        else:
+                            logger.warning(f"Pauta REJEITADA pelo Editor-Chefe (vaga ou sem protagonista): '{tit}' - Motivo: {pauta_audit.get('motivo')}")
             if tema_dupla:
                 disparar_producao_video_futebol(is_doc=True, titulo_especifico=tema_dupla)
                 disparar_producao_video_futebol(is_doc=False, titulo_especifico=tema_dupla)

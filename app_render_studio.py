@@ -1276,23 +1276,34 @@ def processar_video(task_id: str, titulo: str, tipo: str, uploaded_image_paths: 
 
         res_x = 1920 if is_doc else 1080
         res_y = 1080 if is_doc else 1920
-        font_size = 54 if is_doc else 80
-        margin_v = 70 if is_doc else 400
+        font_size = 56 if is_doc else 84
+        margin_v = 75 if is_doc else 420
 
+        # Estilo Cinético de Alta Retenção: Amarelo Ouro (#00E6FF) com borda preta grossa e sombra
         header = (
             f"[Script Info]\nScriptType: v4.00+\nPlayResX: {res_x}\nPlayResY: {res_y}\n\n"
             "[V4+ Styles]\n"
             "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\n"
-            f"Style: Default,Impact,{font_size},&H0000FFFF,&H000000FF,&H00000000,&H80000000,1,0,0,0,100,100,0,0,1,5,2,2,40,40,{margin_v},1\n\n"
+            f"Style: Default,Impact,{font_size},&H0000E6FF,&H000000FF,&H00000000,&H90000000,1,0,0,0,100,100,0,0,1,6,3,2,40,40,{margin_v},1\n"
+            f"Style: Highlight,Impact,{int(font_size*1.08)},&H0000FFFF,&H000000FF,&H00000000,&H90000000,1,0,0,0,105,105,0,0,1,7,4,2,40,40,{margin_v},1\n\n"
             "[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n"
         )
         events = []
-        chunk_size = 6 if is_doc else 4
+        # Chunks curtos de 2 a 3 palavras para ritmo acelerado de leitura visual (máxima retenção)
+        chunk_size = 3 if is_doc else 2
         for i in range(0, len(word_entries), chunk_size):
             chunk = word_entries[i:i+chunk_size]
             t_start = chunk[0]["start"]
             t_end = chunk[-1]["end"]
-            phrase = " ".join([c["text"].upper() for c in chunk])
+            
+            # Formatação com destaque de impacto na primeira palavra da frase para guiar o olho
+            palavras = [c["text"].upper() for c in chunk]
+            if len(palavras) > 1:
+                # Primeira palavra com cor branca de contraste e restantes em amarelo ouro
+                phrase = f"{{\\c&H00FFFFFF&}}{palavras[0]} {{\\c&H0000E6FF&}}" + " ".join(palavras[1:])
+            else:
+                phrase = palavras[0]
+                
             events.append(f"Dialogue: 0,{t_start},{t_end},Default,,0,0,0,,{phrase}")
 
         ass_file = "temp_render_studio.ass"
