@@ -1380,8 +1380,9 @@ def processar_video(task_id: str, titulo: str, tipo: str, uploaded_image_paths: 
             link_display = link_afiliado if link_afiliado else "https://s.click.aliexpress.com/..."
             preco_txt = f" (Apenas {preco_afiliado})" if preco_afiliado else ""
             if canal_tarefa == "fergil":
+                from app.services import dual_ai_editor
                 if is_doc:
-                    post_titulo = f"{titulo[:75]} | Documentário Executivo FERGIL"
+                    post_titulo = f"{titulo[:58]}"
                     tags_virais = (
                         f"FERGIL, {titulo[:35]}, documentario negocios, mentalidade financeira, "
                         "inteligencia artificial, podcasts executivos, wall street, bilionarios, "
@@ -1389,9 +1390,9 @@ def processar_video(task_id: str, titulo: str, tipo: str, uploaded_image_paths: 
                     )
                     from app.services import smart_metadata_cleaner
                     post_desc = smart_metadata_cleaner.gerar_descricao_inteligente(titulo, canal="fergil", tipo="doc")
-                    post_coment = "💼 Qual lição deste documentário você aplicará em seus negócios hoje? Comente abaixo e INSCREVA-SE na @FERGIL! 👇"
+                    post_coment = "💼 Qual lição deste caso você aplicará em seus negócios hoje? Comente abaixo e INSCREVA-SE na @FERGIL! 👇"
                 else:
-                    post_titulo = f"{titulo[:70]} | FERGIL #Shorts"
+                    post_titulo = f"{titulo[:55]} #Shorts"
                     tags_virais = (
                         f"FERGIL, {titulo[:35]}, mentalidade, negocios, investimentos, "
                         "inteligencia artificial, podcasts, dinheiro, riqueza, desenvolvimento pessoal, "
@@ -1466,6 +1467,13 @@ def processar_video(task_id: str, titulo: str, tipo: str, uploaded_image_paths: 
                 f_txt.write(f"FICHA DE POSTAGEM - {prefix}\n")
                 f_txt.write("====================================================\n\n")
                 f_txt.write(f"📌 TÍTULO DO VÍDEO:\n{post_titulo}\n\n")
+                if not is_afiliado:
+                    try:
+                        from app.services import dual_ai_editor
+                        sug_capa = dual_ai_editor.gerar_sugestao_thumbnail_complementar(post_titulo, canal=canal_tarefa)
+                        f_txt.write(f"🎨 DIRETRIZ DE MINIATURA (THUMBNAIL COMPLEMENTAR - NÃO REPETIR O TÍTULO):\n{sug_capa}\n\n")
+                    except Exception:
+                        pass
                 f_txt.write(f"📝 DESCRIÇÃO COM HASHTAGS:\n{post_desc}\n\n")
                 f_txt.write(f"🏷️ TAGS DO YOUTUBE (COPIAR E COLAR NO CAMPO DE TAGS):\n{tags_virais}\n\n")
                 f_txt.write(f"💬 1º COMENTÁRIO FIXADO (LINK DIRETO):\n{post_coment}\n\n")

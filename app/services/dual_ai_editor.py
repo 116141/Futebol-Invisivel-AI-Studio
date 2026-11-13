@@ -110,25 +110,57 @@ def gerar_titulo_viral_outlier_futebol(titulo_bruto: str, is_doc: bool = False) 
     
     REGRAS OBRIGATÓRIAS:
     - Mantenha 100% da verdade factual da manchete original (MESMOS jogadores e clubes).
-    - NUNCA adicione sufixos robóticos como "| Documentário Investigativo" no título.
-    - NUNCA faça um título que pareça nota fria de jornal ("Fulano aponta Ciclano...", "Time vence e mantém ponta...").
-    - Se for Vídeo Longo Documentário (16:9), use preferencialmente a estrutura campeã de 11,35% CTR:
-      «FRASE DE IMPACTO CURTA!» + O Que Realmente Aconteceu / O Plano Secreto / A Reunião que Mudou [Protagonista/Clube]
-    - Máximo de 72 caracteres para leitura rápida no telemóvel.
+    - PROIBIÇÃO ABSOLUTA: NUNCA use as palavras "Documentário", "Documentário Investigativo" ou "Documentário Executivo" no título!
+    - TÍTULO COM LACUNA DE CURIOSIDADE (NÃO ENTREGUE A NOTÍCIA):
+      Se o torcedor ler o título e sentir que já sabe a notícia inteira, ele NÃO clica!
+      Transforme a notícia em uma DÚVIDA IRRESISTÍVEL ou PLANO SECRETO:
+      - Ruim (entrega tudo): "Scholes aponta Barcelona como possível destino de Haaland"
+      - Bom (< 55 chars): "O Plano Secreto Para Tirar Haaland do City!"
+      - Bom (< 55 chars): "Por Que Haaland no Barça Deixou a Inglaterra em Pânico"
+    - LIMITE ESTRITO DE TAMANHO: Máximo de 55 caracteres! (No telemóvel o YouTube corta após ~50 caracteres, e 82,3% do nosso público está no telemóvel).
     - Não adicione hashtags no título (o sistema adiciona depois se for Short).
     - Responda APENAS com o título final puro, sem explicações.
     """
     try:
         cfg_groq = _obter_groq_config()
         resp = llm._generate_response(prompt=prompt, app_config=cfg_groq)
-        if resp and not resp.strip().startswith("Error:") and 15 <= len(resp.strip()) <= 90:
+        if resp and not resp.strip().startswith("Error:") and 12 <= len(resp.strip()) <= 75:
             novo_t = resp.strip().strip('"').strip("'")
-            novo_t = re.sub(r'[\<\>\"]', '', novo_t)
+            novo_t = re.sub(r'[\<\>\"\|]', '', novo_t)
+            novo_t = re.sub(r'(?i)\bdocument[áa]rio(\s+investigativo|\s+executivo)?\b', '', novo_t).strip()
             return novo_t
     except Exception as e:
         logger.warning(f"Aviso ao gerar título outlier futebol: {e}")
 
-    return t_limpo
+    return t_limpo[:55]
+
+
+def gerar_sugestao_thumbnail_complementar(titulo_final: str, canal: str = "futebol") -> str:
+    """
+    Gera a sugestão de Miniatura (Thumbnail) com 2 a 4 palavras de alto contraste que COMPLEMENTAM
+    o título sem repeti-lo (Regra 4 do YouTube Studio / skill yt-package).
+    """
+    prompt = f"""
+    Você é o Especialista em Miniaturas (Thumbnails) de Alto CTR do canal '{canal.upper()}'.
+    Título do vídeo (< 55 caracteres): "{titulo_final}"
+
+    REGRAS DO YOUTUBE STUDIO PARA MINIATURA VENCEDORA:
+    1. O texto na miniatura NUNCA repete o título; ele COMPLEMENTA com 2 a 3 palavras curtas de choque ou dúvida!
+       (Exemplos: "1 BILHÃO?!", "ADEUS CITY?", "FOI TRAÍDO?!", "ACABOU TUDO!", "LISTA VAZOU!").
+    2. Descreva em 1 linha a cena visual de alto contraste humano (expressão facial tensa do protagonista + elemento em destaque).
+
+    Responda em apenas 2 linhas curtas neste formato exato:
+    TEXTO NA CAPA (2-3 palavras): [Texto curto de impacto]
+    CENA VISUAL: [Descrição rápida da foto/expressão]
+    """
+    try:
+        cfg_groq = _obter_groq_config()
+        resp = llm._generate_response(prompt=prompt, app_config=cfg_groq)
+        if resp and not resp.strip().startswith("Error:"):
+            return resp.strip()
+    except Exception:
+        pass
+    return "TEXTO NA CAPA (2-3 palavras): BASTIDOR SECRETO!\nCENA VISUAL: Rosto do protagonista com expressão séria e fundo contrastante."
 
 def auditar_roteiro_com_groq(roteiro: str, titulo: str, canal: str, is_doc: bool) -> dict:
     """
