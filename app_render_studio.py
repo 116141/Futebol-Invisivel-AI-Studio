@@ -906,10 +906,18 @@ def processar_video(task_id: str, titulo: str, tipo: str, uploaded_image_paths: 
                 "react", "reagindo", "podcast", "cortes", "live", "opinião", "opiniao",
                 "debate", "vlog", "resenha", "entrevista", "#shorts", "shorts", "tiktok", "edit", "status",
                 "commercial", "comercial", "nike", "trailer", "movie", "filme", "noticia", "jornal",
-                # BLOQUEIO ABSOLUTO DE OUTROS ESPORTES (VÔLEI, TÊNIS, BASQUETE, F1, ETC.)
+                # BLOQUEIO ABSOLUTO DE OUTROS ESPORTES (BASQUETE, VÔLEI, TÊNIS, HANDEBOL, FUTSAL, F1, ETC.)
                 "volei", "vôlei", "volleyball", "superliga", "saque", "bloqueio", "vnl", "fivb",
                 "tennis", "tênis", "tenis", "atp", "wta", "roland garros", "wimbledon", "us open", "australian open",
-                "racket", "raquete", "nadal highlights tennis", "djokovic", "alcaraz", "federer", "nba", "basquete", "basketball", "f1", "formula 1",
+                "racket", "raquete", "nadal highlights tennis", "djokovic", "alcaraz", "federer",
+                "nba", "basquete", "basketball", "baloncesto", "fiba", "eurobasket", "euroleague", "euroliga", "acb", "endesa",
+                "handball", "handebol", "balonmano", "ehf", "futsal", "f1", "formula 1", "motogp", "ufc", "mma", "boxe", "boxing",
+                "rugby", "cricket", "hockey", "nfl", "mlb", "nhl", "padel",
+                # BLOQUEIO DE PADRÕES DE TRANSMISSÃO OFICIAL QUE GERAM CONTENT ID GLOBAL (EX: PREMIER LEAGUE FMTS)
+                "gw1", "gw2", "gw3", "gw4", "gw5", "gw6", "gw7", "gw8", "gw9", "gw10", "gw11", "gw12",
+                "gw13", "gw14", "gw15", "gw16", "gw17", "gw18", "gw19", "gw20", "gw21", "gw22", "gw23",
+                "gw24", "gw25", "gw26", "gw27", "gw28", "gw29", "gw30", "gw31", "gw32", "gw33", "gw34",
+                "gw35", "gw36", "gw37", "gw38", "matchweek", "extended highlights", "official highlights", "full match",
                 # FILTRO UNIVERSAL ANTI-VÍDEO ANTIGO (CONSIDERANDO ANO ATUAL: 2026 / TEMPORADA 2025/2026/2027)
                 "classic", "clássico", "retro", "retrô", "vintage", "histórico", "historico",
                 "1990", "1991", "1992", "1993", "1994", "1995", "1996", "1997", "1998", "1999",
@@ -918,24 +926,27 @@ def processar_video(task_id: str, titulo: str, tipo: str, uploaded_image_paths: 
                 "2020", "2021", "2022", "2023", "2024",
                 "nostalgia", "throwback", "anos atrás", "years ago", "antigo", "relembre", "era uma vez", "h/l"
             ]
-            # CANAIS OFICIAIS DE TRANSMISSÃO BLOQUEADOS (CONTENT ID AUTOMÁTICO GLOBAL):
+            # CANAIS OFICIAIS DE TRANSMISSÃO E CLUBES BLOQUEADOS (CONTENT ID AUTOMÁTICO GLOBAL):
             canais_oficiais_proibidos = [
                 "serie a", "serie a tim", "dazn", "cazétv", "cazetv", "tnt sports", "espn", "ge globo", 
-                "globo esporte", "sky sport", "bein sports", "premier league", "bundesliga", "laliga", 
-                "ligue 1", "uefa", "conmebol", "fifa", "cbs sports", "paramount+", "movistar"
+                "globo esporte", "sky sport", "sky sports", "bt sport", "tnt sports uk", "bbc sport", "itv sport",
+                "nbc sports", "peacock", "optus sport", "supersport", "canal+", "rmc sport", "ziggo sport", "viaplay",
+                "bein sports", "premier league", "bundesliga", "laliga", "ligue 1", "uefa", "conmebol", "fifa",
+                "cbs sports", "paramount+", "movistar", "fiba", "nba", "euroleague",
+                "man city", "manchester city", "nottingham forest", "liverpool fc", "arsenal", "chelsea football club",
+                "manchester united", "tottenham hotspur", "real madrid", "fc barcelona"
             ]
-            # Exige que o título do vídeo do YouTube tenha referência EXCLUSIVA de FUTEBOL real de campo:
+            # Exige que o título do vídeo do YouTube tenha referência EXPLÍCITA de FUTEBOL real de campo
+            # (NUNCA adicionar nomes de países sozinhos como 'Espanha' para evitar basquete/vôlei de seleções!):
             termos_obrigatorios_futebol = [
-                "futebol", "football", "soccer", "real madrid", "barcelona", "flamengo", "palmeiras", 
+                "futebol", "football", "soccer", "fútbol", "calcio", "real madrid", "barcelona", "flamengo", "palmeiras", 
                 "corinthians", "manchester city", "premier league", "champions league", "laliga", "serie a",
-                "brasileirao", "skills", "goals", "gols", "highlights", "lances", "jogadas", "baller",
-                "inter", "como", "milan", "juventus", "napoli", "roma", "arsenal", "liverpool"
+                "brasileirao", "skills", "goals", "gols", "lances", "jogadas", "baller", "fan view", "stadium",
+                "inter", "milan", "juventus", "napoli", "roma", "arsenal", "liverpool", "yamal", "vinicius", "mbappe", "haaland"
             ]
-            if protagonista_detectado:
-                termos_obrigatorios_futebol.extend([p.lower() for p in protagonista_detectado.split() if len(p) > 2])
-            # Adiciona também palavras-chave do próprio título da notícia para garantir match perfeito com o jogo citado
-            palavras_titulo = [w.lower() for w in re.sub(r'[^a-zA-ZÀ-ÿ]', ' ', titulo).split() if len(w) > 3]
-            termos_obrigatorios_futebol.extend(palavras_titulo)
+            # NÃO adicionamos 'palavras_titulo' cegamente em termos_obrigatorios_futebol!
+            # Porque se o título tiver 'Espanha vence República Tcheca', adicionar 'espanha' e 'tcheca'
+            # aprovaria vídeos de Basquete ('Espanha x República Tcheca EuroBasket') sem a palavra 'futebol'!
             
             # Para documentários (16:9), buscar de 2 a 3 fontes de vídeos diferentes para variar os takes e não repetir lances
             alvo_downloads = 3 if is_doc else 1
@@ -1099,34 +1110,33 @@ def processar_video(task_id: str, titulo: str, tipo: str, uploaded_image_paths: 
 
         TASKS[task_id]["status"] = f"Cortando Clipes em {aspect_ratio} e Editando..."
         
-        # DINAMISMO CINEMATOGRÁFICO DE CORTE PARA RETENÇÃO MÁXIMA
-        # Em documentários investigativos: takes de 2.5s a 3.2s com cortes frequentes entre múltiplas jogadas atuais
-        dur_take = 3.0 if is_doc else 3.2
+        # DINAMISMO CINEMATOGRÁFICO DE CORTE PARA RETENÇÃO MÁXIMA E BLINDAGEM ANTI-CONTENT ID (2.2s < 3.0s)
+        # Nenhum trecho contínuo de vídeo pode passar de 2.2 segundos para impedir match de impressão digital visual (FMTS / Premier League)
+        dur_take = 2.2 if is_doc else 2.4
         # Para documentários, calcula dinamicamente o número de takes para cobrir 100% da duração da narração
-        target_clips_needed = int(audio_duration // dur_take) + 4 if audio_duration > 0 else (60 if is_doc else 12)
-        max_clips = target_clips_needed if is_doc else 8
+        target_clips_needed = int(audio_duration // dur_take) + 6 if audio_duration > 0 else (75 if is_doc else 15)
+        max_clips = target_clips_needed if is_doc else 12
         logger.info(f"Meta de clipes para cobrir {audio_duration:.1f}s de narração: {max_clips} takes")
         
         # Gerar offsets amplos cobrindo até vídeos longos
         if is_doc:
-            offsets = [15 + i * 18 for i in range(35)]  # Gera até 35 pontos de corte espaçados
+            offsets = [15 + i * 14 for i in range(45)]  # Gera até 45 pontos de corte espaçados
         else:
-            offsets = [10, 20, 30, 45, 60, 75, 90]
+            offsets = [10, 18, 26, 35, 45, 55, 65, 75, 85, 95]
         
         for v in downloaded:
             for off in offsets:
                 c_out = os.path.join(temp_dir, f"clip_vid_{clip_idx:02d}.mp4")
                 if is_doc:
-                    # Enquadramento cinematográfico 16:9 anti-Content ID:
-                    # 1. Zoom de 14% e leve crop descentralizado
+                    # Enquadramento cinematográfico 16:9 anti-Content ID estrito:
+                    # 1. Zoom profundo de 24% (0.76) com deslocamento assimétrico (remove placares/logos de TV nos cantos superiores)
                     # 2. Hflip (espelhamento horizontal) alternado a cada clipe para quebrar a assinatura visual do broadcast
-                    # 3. Micro-alteração de curva de cor (eq=contrast=1.05:brightness=0.01:saturation=1.06)
-                    # 4. Leve vinheta sutil cinematográfica
+                    # 3. Alteração de curva de cor e nitidez (eq=contrast=1.08:brightness=0.015:saturation=1.10)
                     hflip_str = ",hflip" if (clip_idx % 2 == 1) else ""
-                    vf_filter = f"scale=1920:1080:force_original_aspect_ratio=increase,crop=1920*0.86:1080*0.86:(iw-1920*0.86)/2:(ih-1080*0.86)/2,scale=1920:1080{hflip_str},eq=contrast=1.05:brightness=0.01:saturation=1.06,fps=30"
+                    vf_filter = f"scale=1920:1080:force_original_aspect_ratio=increase,crop=1920*0.76:1080*0.76:(iw-1920*0.76)/2:ih*0.14,scale=1920:1080{hflip_str},eq=contrast=1.08:brightness=0.015:saturation=1.10,fps=30"
                 else:
-                    # Crop central com zoom limpo de 12% para preencher 100% da tela 1080x1920 (sem faixas pretas e cortando marcas d'água de borda)
-                    vf_filter = "crop=ih*0.88*9/16:ih*0.88:(iw-ih*0.88*9/16)/2:ih*0.04,scale=1080:1920,eq=contrast=1.05:saturation=1.06,fps=30"
+                    # Crop central com zoom limpo de 18% para preencher 100% da tela 1080x1920 (sem faixas pretas e cortando marcas d'água de borda)
+                    vf_filter = "crop=ih*0.82*9/16:ih*0.82:(iw-ih*0.82*9/16)/2:ih*0.09,scale=1080:1920,eq=contrast=1.07:saturation=1.08,fps=30"
                 
                 cmd = [
                     FFMPEG, "-y", "-ss", str(off), "-i", v, "-t", str(dur_take), "-an",

@@ -16,16 +16,17 @@ def gerar_parametros_busca_broll_ia(roteiro: str, titulo: str, canal: str) -> di
     Leia o título da matéria: "{titulo}".
 
     REGRAS INEGOCIÁVEIS:
-    1. CONFRONTO EXATO: As buscas DEVEM ser do confronto ou clubes EXATOS do título (ex: se o jogo for 'Inter de Milão x Como', as buscas DEVEM ser de 'Inter vs Como highlights goals Serie A').
-    2. PROIBIÇÃO ABSOLUTA DE OUTROS TIMES: NUNCA crie buscas envolvendo outros adversários (ex: não inclua Barcelona, Fiorentina, Real Madrid).
-    3. PROIBIÇÃO DE COLETIVAS: NUNCA use termos de entrevista, coletiva ou podcast. Apenas lances e gols na grama!
+    1. EXCLUSIVAMENTE FUTEBOL DE CAMPO (SOCCER / FOOTBALL): SEMPRE adicione a palavra 'football' ou 'soccer' em CADA query de busca para que o YouTube NUNCA retorne jogos de basquete (EuroBasket/FIBA), handebol, vôlei ou futsal!
+    2. ANTI-CONTENT ID (PROIBIDO TRANSMISSÃO OFICIAL): NUNCA use termos como 'highlights', 'official', 'Premier League', 'Serie A', 'LaLiga', 'Nations League', 'GW10', 'matchday' ou 'extended highlights'.
+    3. APENAS GRAVAÇÕES DE ESTÁDIO / FÃS / SKILLS: Use SEMPRE termos como 'fan view stadium', 'from the stands', 'skills and goals comp', 'tactical cam' ou 'warm up stadium'.
+    4. CONFRONTO OU PROTAGONISTA EXATO: Use o nome dos clubes ou jogadores do título + 'football'.
 
     Responda EXCLUSIVAMENTE em formato JSON:
     {{
         "protagonista": "Nome do time ou jogador central",
         "queries": [
-            "termo exato do jogo highlights goals HD",
-            "termo alternativo com os mesmos times Serie A HD"
+            "Nome do Jogador ou Time football skills comp HD",
+            "Nome do Time football fan view stadium atmosphere HD"
         ]
     }}
     """
@@ -37,12 +38,14 @@ def gerar_parametros_busca_broll_ia(roteiro: str, titulo: str, canal: str) -> di
             dados = json.loads(match.group(0))
             limpas = []
             for q in dados.get("queries", []):
-                q_clean = re.sub(r'(?i)\b(press conference|conference|interview|entrevista|coletiva|podcast|react|classic|clássico|retro|199\d|200\d|201\d)\b', '', q).strip()
+                q_clean = re.sub(r'(?i)\b(press conference|conference|interview|entrevista|coletiva|podcast|react|classic|clássico|retro|highlights|official|gw\d+|matchday|199\d|200\d|201\d)\b', '', q).strip()
                 if q_clean:
+                    if "football" not in q_clean.lower() and "soccer" not in q_clean.lower() and "futebol" not in q_clean.lower():
+                        q_clean = f"{q_clean} football"
                     limpas.append(q_clean)
             dados["queries"] = limpas
             return dados
     except Exception as e:
         pass
 
-    return {"protagonista": "Inter de Milão", "queries": ["Inter Como highlights serie a HD", "Inter vs Como goals highlights HD"]}
+    return {"protagonista": "Futebol", "queries": ["Lamine Yamal football skills comp HD", "Real Madrid football fan view stadium HD"]}
