@@ -38,6 +38,234 @@ def _desenhar_texto_com_borda(draw, pos, texto, font, cor_texto, cor_borda=(0, 0
                 draw.text((x + dx, y + dy), texto, font=font, fill=cor_borda)
     draw.text(pos, texto, font=font, fill=cor_texto)
 
+def _desenhar_texto_com_sombra(draw, pos, texto, font, cor_texto, cor_sombra=(0,0,0), offset=(5,5), stroke_w=4, cor_borda=(0,0,0)):
+    x, y = pos
+    ox, oy = offset
+    if offset != (0, 0):
+        for dx in range(-stroke_w, stroke_w + 1):
+            for dy in range(-stroke_w, stroke_w + 1):
+                if dx*dx + dy*dy <= stroke_w*stroke_w:
+                    draw.text((x + ox + dx, y + oy + dy), texto, font=font, fill=cor_sombra)
+    for dx in range(-stroke_w, stroke_w + 1):
+        for dy in range(-stroke_w, stroke_w + 1):
+            if dx*dx + dy*dy <= stroke_w*stroke_w:
+                draw.text((x + dx, y + dy), texto, font=font, fill=cor_borda)
+    draw.text((x, y), texto, font=font, fill=cor_texto)
+
+def _criar_banner_inclinado(texto: str, largura_canvas: int, angulo: float = -3.5) -> Image.Image:
+    """Cria uma faixa retangular vermelha inclinada com texto amarelo brilhante estilo vitrine."""
+    f_ban = _obter_fonte(int(largura_canvas * 0.080))
+    bb_b = f_ban.getbbox(texto)
+    bw = (bb_b[2] - bb_b[0]) + int(largura_canvas * 0.10)
+    bh = (bb_b[3] - bb_b[1]) + int(largura_canvas * 0.045)
+    
+    ban_img = Image.new("RGBA", (bw + 50, bh + 40), (0, 0, 0, 0))
+    d_b = ImageDraw.Draw(ban_img)
+    d_b.rectangle([18, 14, 18 + bw, 14 + bh], fill=(0, 0, 0, 200))
+    d_b.rectangle([10, 8, 10 + bw, 8 + bh], fill=(215, 20, 25, 255), outline=(255, 220, 40, 255), width=5)
+    _desenhar_texto_com_sombra(d_b, (10 + int(largura_canvas * 0.045), 8 + int(largura_canvas * 0.012)), texto, f_ban, (255, 235, 10), stroke_w=5, cor_borda=(80, 0, 0))
+    return ban_img.rotate(angulo, resample=Image.BICUBIC, expand=True)
+
+
+def _compor_capa_vitrine_afiliado(canvas: Image.Image, dados_capa: Dict[str, str]) -> Image.Image:
+    """Compõe a vitrine de alta conversão idêntica ao benchmark de bolsas/moda."""
+    w, h = canvas.size
+    
+    # 1. Overlay superior escuro para leitura perfeita do título
+    ov = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    d_ov = ImageDraw.Draw(ov)
+    for y in range(int(h * 0.22)):
+        alpha = int(170 * (1 - y / (h * 0.22)))
+        d_ov.line([(0, y), (w, y)], fill=(0, 0, 0, alpha))
+    canvas_rgba = Image.alpha_composite(canvas.convert("RGBA"), ov)
+    
+    # 2. Linha 1: Texto Superior Branco em Caixa Alta
+    linha1 = dados_capa.get("linha1", "ACHADINHO DE LUXO")
+    f_l1 = _obter_fonte(int(h * 0.038))
+    bb = f_l1.getbbox(linha1)
+    if (bb[2] - bb[0]) > w * 0.85:
+        f_l1 = _obter_fonte(int(h * 0.030))
+        bb = f_l1.getbbox(linha1)
+    x1 = (w - (bb[2] - bb[0])) // 2
+    y1 = int(h * 0.030)
+    _desenhar_texto_com_sombra(ImageDraw.Draw(canvas_rgba), (x1, y1), linha1, f_l1, (255, 255, 255), stroke_w=6)
+    
+    # 3. Linha 2: Faixa Inclinada Vermelha com Texto Amarelo
+    linha2 = dados_capa.get("linha2_banner", "PERFEITO!")
+    ban_rot = _criar_banner_inclinado(linha2, w, angulo=-3.5)
+    canvas_rgba.paste(ban_rot, ((w - ban_rot.width) // 2, int(h * 0.082)), ban_rot)
+    
+    # 4. Selo Circular 'OFERTA LIMITADA!' (Topo Esquerdo)
+    selo_path = "resource/templates/selo_sticker.png"
+    if os.path.exists(selo_path):
+        selo = Image.open(selo_path).convert("RGBA")
+        selo_sz = int(w * 0.28)
+        selo = selo.resize((selo_sz, selo_sz), Image.LANCZOS)
+        canvas_rgba.paste(selo, (int(w * 0.05), int(h * 0.18)), selo)
+        
+    # 5. Preço em Destaque no Topo Direito
+    preco = dados_capa.get("preco", "Apenas R$ 149,90!")
+    f_pr = _obter_fonte(int(h * 0.034))
+    b_pr = f_pr.getbbox(preco)
+    _desenhar_texto_com_sombra(ImageDraw.Draw(canvas_rgba), (w - (b_pr[2] - b_pr[0]) - int(w * 0.06), int(h * 0.21)), preco, f_pr, (255, 235, 10), stroke_w=5)
+    
+    # 6. Callout 'GARANTA O SEU!' na Direita Inferior
+    cta_path = "resource/templates/cta_sticker.png"
+    if os.path.exists(cta_path):
+        cta = Image.open(cta_path).convert("RGBA")
+        cta_w = int(w * 0.38)
+        cta_h = int(cta.height * (cta_w / cta.width))
+        cta = cta.resize((cta_w, cta_h), Image.LANCZOS)
+        canvas_rgba.paste(cta, (w - cta_w - int(w * 0.04), int(h * 0.69)), cta)
+    else:
+        f_cta = _obter_fonte(int(h * 0.028))
+        txt_cta = dados_capa.get("texto_cta", "GARANTA O SEU!")
+        b_cta = f_cta.getbbox(txt_cta)
+        cw = (b_cta[2] - b_cta[0]) + int(w * 0.08)
+        ch = (b_cta[3] - b_cta[1]) + int(h * 0.018)
+        cta_img = Image.new("RGBA", (cw + 30, ch + 30), (0, 0, 0, 0))
+        d_c = ImageDraw.Draw(cta_img)
+        d_c.rectangle([12, 10, 12 + cw, 10 + ch], fill=(0, 0, 0, 180))
+        d_c.rectangle([8, 6, 8 + cw, 6 + ch], fill=(255, 225, 10, 255), outline=(0, 0, 0, 255), width=4)
+        _desenhar_texto_com_sombra(d_c, (8 + int(w * 0.04), 6 + int(h * 0.005)), txt_cta, f_cta, (0, 0, 0), stroke_w=0, offset=(0,0))
+        cta_rot = cta_img.rotate(4, resample=Image.BICUBIC, expand=True)
+        canvas_rgba.paste(cta_rot, (w - cta_rot.width - int(w * 0.04), int(h * 0.73)), cta_rot)
+    
+    # 7. Rodapé de Conversão
+    footer_path = "resource/templates/boutique_full_footer.png"
+    if os.path.exists(footer_path):
+        ft = Image.open(footer_path).convert("RGBA")
+        ft_h = int(h * 0.17)
+        ft_w = w
+        ft = ft.resize((ft_w, ft_h), Image.LANCZOS)
+        canvas_rgba.paste(ft, (0, h - ft_h), ft)
+        
+    return canvas_rgba.convert("RGB")
+
+
+def _compor_capa_dossie_futebol(canvas: Image.Image, dados_capa: Dict[str, str], is_doc: bool = False) -> Image.Image:
+    """Compõe a capa estilo Dossiê Investigativo com corkboard oficial à direita."""
+    w, h = canvas.size
+    canvas_rgba = canvas.convert("RGBA")
+    
+    # 1. Aplicar o Corkboard de Investigação na metade direita
+    tpl_cork = "resource/templates/dossie_corkboard_doc.png" if is_doc else "resource/templates/dossie_corkboard_short.png"
+    if os.path.exists(tpl_cork):
+        cork = Image.open(tpl_cork).convert("RGBA")
+        if is_doc:
+            target_w = int(w * 0.44)
+            cork_resized = cork.resize((target_w, h), Image.LANCZOS)
+            x_paste = w - target_w
+            y_paste = 0
+        else:
+            target_w = int(w * 0.48)
+            target_h = int(h * 0.78)
+            cork_resized = cork.resize((target_w, target_h), Image.LANCZOS)
+            x_paste = w - target_w
+            y_paste = int(h * 0.18)
+            
+        mask_cork = Image.new("L", cork_resized.size, 255)
+        d_mc = ImageDraw.Draw(mask_cork)
+        fade_w = int(cork_resized.width * 0.22)
+        for fx in range(fade_w):
+            alpha = int(255 * (fx / fade_w))
+            d_mc.line([(fx, 0), (fx, cork_resized.height)], fill=alpha)
+            
+        canvas_rgba.paste(cork_resized, (x_paste, y_paste), mask_cork)
+        
+    # 2. Vinheta e Sombra de Contraste para Tipografia no Topo
+    ov = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    d_ov = ImageDraw.Draw(ov)
+    fade_top_h = int(h * 0.32)
+    for y in range(fade_top_h):
+        alpha = int(220 * (1 - y / fade_top_h))
+        d_ov.line([(0, y), (w, y)], fill=(0, 0, 0, alpha))
+    canvas_rgba = Image.alpha_composite(canvas_rgba, ov)
+    
+    d = ImageDraw.Draw(canvas_rgba)
+    
+    # 3. Badge Superior de Dossiê
+    badge_txt = dados_capa.get("badge_txt", "🔴 DOSSIÊ CONFIDENCIAL")
+    f_badge = _obter_fonte(int(h * 0.024) if is_doc else int(h * 0.020))
+    bb_badge = f_badge.getbbox(badge_txt)
+    badge_w = (bb_badge[2] - bb_badge[0]) + int(w * 0.05)
+    badge_h = (bb_badge[3] - bb_badge[1]) + int(h * 0.012)
+    
+    bx = int(w * 0.05)
+    by = int(h * 0.035)
+    d.rectangle([bx + 4, by + 4, bx + badge_w + 4, by + badge_h + 4], fill=(0, 0, 0, 180))
+    d.rectangle([bx, by, bx + badge_w, by + badge_h], fill=(200, 20, 20, 255), outline=(255, 255, 255, 255), width=2)
+    d.text((bx + int(w * 0.025), by + int(h * 0.003)), badge_txt, font=f_badge, fill=(255, 255, 255))
+    
+    # 4. Linha 1: Título de Alto Impacto em Amarelo Ouro
+    tit_amarelo = dados_capa.get("titulo_amarelo", dados_capa.get("texto_banner", "BOMBA NO FUTEBOL!"))
+    f_l1 = _obter_fonte(int(h * 0.062) if is_doc else int(h * 0.046))
+    bb1 = f_l1.getbbox(tit_amarelo)
+    if (bb1[2] - bb1[0]) > w * 0.88:
+        f_l1 = _obter_fonte(int(h * 0.048) if is_doc else int(h * 0.038))
+        bb1 = f_l1.getbbox(tit_amarelo)
+    y_l1 = by + badge_h + int(h * 0.015)
+    _desenhar_texto_com_sombra(d, (bx, y_l1), tit_amarelo, f_l1, (255, 225, 10), stroke_w=6)
+    
+    # 5. Linha 2 e 3: Punchline em Branco e Vermelho
+    p_branca = dados_capa.get("punchline_branca", dados_capa.get("subtitulo", "A VERDADE DOS BASTIDORES"))
+    f_l2 = _obter_fonte(int(h * 0.045) if is_doc else int(h * 0.036))
+    y_l2 = y_l1 + (bb1[3] - bb1[1]) + int(h * 0.012)
+    _desenhar_texto_com_sombra(d, (bx, y_l2), p_branca, f_l2, (255, 255, 255), stroke_w=5)
+    
+    p_vermelha = dados_capa.get("punchline_vermelha", "")
+    if p_vermelha:
+        f_l3 = _obter_fonte(int(h * 0.045) if is_doc else int(h * 0.036))
+        y_l3 = y_l2 + int(h * 0.042)
+        _desenhar_texto_com_sombra(d, (bx, y_l3), p_vermelha, f_l3, (235, 30, 30), stroke_w=5)
+        
+    return canvas_rgba.convert("RGB")
+
+
+def _compor_capa_executiva_fergil(canvas: Image.Image, dados_capa: Dict[str, str], is_doc: bool = True) -> Image.Image:
+    """Compõe a capa corporativa / Wall Street para o canal FERGIL."""
+    w, h = canvas.size
+    canvas_rgba = canvas.convert("RGBA")
+    
+    ov = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    d_ov = ImageDraw.Draw(ov)
+    if is_doc:
+        for x in range(int(w * 0.60)):
+            alpha = int(220 * (1 - x / (w * 0.60)))
+            d_ov.line([(x, 0), (x, h)], fill=(8, 14, 25, alpha))
+    else:
+        for y in range(int(h * 0.35)):
+            alpha = int(220 * (1 - y / (h * 0.35)))
+            d_ov.line([(0, y), (w, y)], fill=(8, 14, 25, alpha))
+    canvas_rgba = Image.alpha_composite(canvas_rgba, ov)
+    
+    d = ImageDraw.Draw(canvas_rgba)
+    
+    badge_txt = dados_capa.get("badge_txt", "💼 BASTIDOR EXECUTIVO")
+    f_badge = _obter_fonte(int(h * 0.024) if is_doc else int(h * 0.020))
+    bb_badge = f_badge.getbbox(badge_txt)
+    badge_w = (bb_badge[2] - bb_badge[0]) + int(w * 0.05)
+    badge_h = (bb_badge[3] - bb_badge[1]) + int(h * 0.012)
+    
+    bx = int(w * 0.05)
+    by = int(h * 0.040)
+    d.rectangle([bx, by, bx + badge_w, by + badge_h], fill=(18, 30, 55, 255), outline=(255, 215, 0, 255), width=2)
+    d.text((bx + int(w * 0.025), by + int(h * 0.003)), badge_txt, font=f_badge, fill=(255, 215, 0))
+    
+    tit = dados_capa.get("titulo_amarelo", dados_capa.get("texto_banner", "PODER & ESTRATÉGIA"))
+    f_xl = _obter_fonte(int(h * 0.065) if is_doc else int(h * 0.048))
+    y_xl = by + badge_h + int(h * 0.018)
+    _desenhar_texto_com_sombra(d, (bx, y_xl), tit, f_xl, (255, 215, 0), stroke_w=6, cor_borda=(10, 15, 30))
+    
+    sub = dados_capa.get("subtitulo", "ESTUDO DE CASO EXECUTIVO")
+    f_sub = _obter_fonte(int(h * 0.038) if is_doc else int(h * 0.032))
+    y_sub = y_xl + int(h * 0.075) if is_doc else y_xl + int(h * 0.055)
+    _desenhar_texto_com_sombra(d, (bx, y_sub), sub, f_sub, (255, 255, 255), stroke_w=5)
+    
+    _desenhar_texto_com_sombra(d, (w - int(w * 0.22), by), "FERGIL", f_badge, (220, 220, 220), stroke_w=3)
+    
+    return canvas_rgba.convert("RGB")
+
 
 def _extrair_frame_video(video_path: str) -> Optional[Image.Image]:
     """Extrai um frame nítido do vídeo em alta resolução usando FFmpeg."""
@@ -86,7 +314,7 @@ def gerar_prompt_capa_ia(titulo: str, canal: str = "futebol", is_doc: bool = Tru
     """
     Diretor de Arte com IA: Cria e valida dinamicamente o prompt visual cinematográfico em inglês
     especificamente para motores de difusão (FLUX / Stable Diffusion) e gera a tipografia complementar
-    de alto CTR em português.
+    de alto CTR em português, alinhada aos benchmarks de cada canal.
     """
     aspect_ratio = "16:9" if is_doc else "9:16"
     nome_canal_badge = "FERGIL" if canal == "fergil" else ("ALANA CRUZ" if canal == "moda" else "FUTEBOL INVISÍVEL")
@@ -94,29 +322,68 @@ def gerar_prompt_capa_ia(titulo: str, canal: str = "futebol", is_doc: bool = Tru
     # Tentativa de Direção Artística Dinâmica via Groq (Llama 3.3 70B)
     try:
         from app.services import llm, dual_ai_editor
-        prompt_director = f"""
-        Você é o Diretor de Arte de Miniaturas (Thumbnails) do YouTube de maior sucesso do mundo.
-        Crie a especificação visual e tipográfica perfeita para o vídeo:
-        Título: '{titulo}'
-        Canal: {canal} | Formato: {'Documentário 16:9' if is_doc else 'Short 9:16'}
-
-        REGRAS VISUAIS PARA O GERADOR DE IMAGEM (FLUX / STABLE DIFFUSION):
-        1. O prompt_imagem DEVE SER EM INGLÊS, altamente cinematográfico (estilo pôster de cinema 8K).
-        2. Descreva o protagonista, micro-expressão facial tensa/séria, iluminação dividida (split lighting volumétrica) e cenário atmosférico (chuva leve, névoa, estádio ou vidro de arranha-céu).
-        3. REGRA DE COMPOSIÇÃO: O protagonista deve ficar nos dois terços da DIREITA, deixando o terço da ESQUERDA limpo/escuro com espaço negativo para a tipografia.
-        4. PROIBIÇÃO ABSOLUTA: Termine sempre instruindo a IA a NÃO desenhar texto ou letras ('photorealistic, cinematic color grading, 85mm lens, shallow depth of field, NO text, NO letters, NO words, NO watermark').
-        5. TEXTO DE SOBREPOSIÇÃO (COMPLEMENTAR EM PORTUGUÊS): 2 a 3 palavras curtas de alto impacto que complementam o título sem repeti-lo (ex: 'O ADEUS?!', '1 BILHÃO?!', 'INVESTIGAÇÃO INTERNA').
-        6. BADGE (EM PORTUGUÊS): Selo de autoridade do canal (ex: '🔴 DOSSIÊ CONFIDENCIAL', '💼 BASTIDOR EXECUTIVO', '✨ ACHADINHO DE LUXO').
-
-        Responda EXCLUSIVAMENTE em formato JSON:
-        {{
-            "prompt_imagem": "Hyper-realistic 8k cinematic portrait of...",
-            "texto_sobreposicao": "2 a 3 palavras de alto contraste",
-            "subtitulo": "subtítulo de contexto curto",
-            "badge": "texto do selo superior",
-            "protagonista": "nome da figura central"
-        }}
-        """
+        
+        if canal == "moda":
+            prompt_director = f"""
+            Você é o Diretor de Arte de Miniaturas de Moda e Achadinhos (Alana Cruz).
+            Crie a especificação visual e tipográfica perfeita para o vídeo:
+            Título: '{titulo}'
+            
+            REGRAS VISUAIS:
+            1. prompt_imagem (EM INGLÊS): Wide shot of elegant smiling model from waist to knees on an illuminated gold pedestal stage, warm golden bokeh particles, luxury boutique background, top 35% empty dark negative space with gentle sparkling gold dust, photorealistic 8k, NO text, NO letters, NO words, NO watermark.
+            2. linha1: 2 a 3 palavras brancas no topo (ex: 'O VESTIDO', 'A BOLSA', 'RELÓGIO DE LUXO', 'O CONJUNTO').
+            3. linha2_banner: Palavra de impacto no banner vermelho (ex: 'PERFEITO!', 'DE LUXO!', 'IMPECÁVEL!', 'DESEJO!').
+            4. preco: Preço chamativo (ex: 'Apenas R$ 149,90!' ou 'Apenas R$ 108,88!').
+            5. texto_cta: 'GARANTA O SEU!' ou 'GARANTA A SUA!'.
+            
+            Responda EXCLUSIVAMENTE em formato JSON:
+            {{
+                "prompt_imagem": "...",
+                "linha1": "O VESTIDO",
+                "linha2_banner": "PERFEITO!",
+                "preco": "Apenas R$ 149,90!",
+                "texto_cta": "GARANTA O SEU!"
+            }}
+            """
+        elif canal == "futebol":
+            prompt_director = f"""
+            Você é o Diretor de Arte do canal Futebol Invisível.
+            Crie a especificação visual estilo Dossiê Investigativo para:
+            Título: '{titulo}' | Formato: {'Documentário 16:9' if is_doc else 'Short 9:16'}
+            
+            REGRAS VISUAIS:
+            1. prompt_imagem (EM INGLÊS): Split sports poster, left side intense emotional portrait of protagonist under dramatic stadium floodlights, heavy rain and smoke, right side crime investigation corkboard with confidential dossiers, red yarn connecting folders, NO text, NO letters, NO words, NO watermark.
+            2. titulo_amarelo: 2 a 3 palavras em amarelo ouro de alto impacto (ex: 'HAALAND PRESSIONADO!', 'ABEL COBRA REFORÇOS!', 'VINI JR. DEFENDIDO!').
+            3. punchline_branca: Subtítulo em branco (ex: 'A BRIGA SECRETA NOS BASTIDORES', 'DECLARAÇÃO BOMBÁSTICA:').
+            4. punchline_vermelha: Complemento em vermelho alerta (ex: 'DO MANCHESTER CITY', '"NÃO AJUDA MAIS"').
+            5. badge: '🔴 DOSSIÊ CONFIDENCIAL' ou '🔥 BASTIDOR EXPLOSIVO'.
+            
+            Responda EXCLUSIVAMENTE em formato JSON:
+            {{
+                "prompt_imagem": "...",
+                "titulo_amarelo": "...",
+                "punchline_branca": "...",
+                "punchline_vermelha": "...",
+                "badge": "🔴 DOSSIÊ CONFIDENCIAL",
+                "protagonista": "..."
+            }}
+            """
+        else: # fergil
+            prompt_director = f"""
+            Você é o Diretor de Arte do canal corporativo FERGIL.
+            Crie a especificação visual Wall Street para:
+            Título: '{titulo}' | Formato: {'Documentário 16:9' if is_doc else 'Short 9:16'}
+            
+            Responda EXCLUSIVAMENTE em formato JSON:
+            {{
+                "prompt_imagem": "...",
+                "titulo_amarelo": "QUEDA BILIONÁRIA",
+                "subtitulo": "ESTUDO DE CASO EXECUTIVO",
+                "badge": "💼 BASTIDOR EXECUTIVO",
+                "protagonista": "..."
+            }}
+            """
+            
         cfg = dual_ai_editor._obter_groq_config()
         resp = llm._generate_response(prompt=prompt_director, app_config=cfg)
         match = re.search(r'\{.*\}', resp, re.DOTALL)
@@ -126,21 +393,39 @@ def gerar_prompt_capa_ia(titulo: str, canal: str = "futebol", is_doc: bool = Tru
             if "no text" not in p_img.lower():
                 p_img += ", photorealistic, cinematic lighting, NO text, NO letters, NO watermark"
             
-            t_banner = str(dados_ia.get("texto_sobreposicao", "REVELADO!")).strip().upper()
-            t_sub = str(dados_ia.get("subtitulo", "O PLANO SECRETO")).strip().upper()
-            t_badge = str(dados_ia.get("badge", "🔴 EXCLUSIVO")).strip().upper()
-            prot = str(dados_ia.get("protagonista", titulo[:25])).strip()
-            
-            logger.info(f"🎨 [DIRETOR IA DE CAPA] Prompt gerado para '{titulo[:30]}...': Texto='{t_banner}' | Prompt={p_img[:50]}...")
-            return {
+            res = {
                 "prompt": p_img,
-                "texto_banner": t_banner[:24],
-                "subtitulo": t_sub[:28],
-                "badge_txt": t_badge,
                 "nome_canal_badge": nome_canal_badge,
-                "protagonista": prot,
                 "aspect_ratio": aspect_ratio
             }
+            if canal == "moda":
+                res.update({
+                    "linha1": str(dados_ia.get("linha1", "ACHADINHO DE LUXO")).strip().upper()[:24],
+                    "linha2_banner": str(dados_ia.get("linha2_banner", "PERFEITO!")).strip().upper()[:18],
+                    "preco": str(dados_ia.get("preco", "Apenas R$ 149,90!")).strip(),
+                    "texto_cta": str(dados_ia.get("texto_cta", "GARANTA O SEU!")).strip().upper()[:18],
+                    "badge_txt": "✨ ACHADINHO DE LUXO"
+                })
+            elif canal == "futebol":
+                res.update({
+                    "titulo_amarelo": str(dados_ia.get("titulo_amarelo", "BOMBA NO FUTEBOL!")).strip().upper()[:30],
+                    "punchline_branca": str(dados_ia.get("punchline_branca", "A VERDADE DOS BASTIDORES")).strip().upper()[:35],
+                    "punchline_vermelha": str(dados_ia.get("punchline_vermelha", "")).strip().upper()[:25],
+                    "badge_txt": str(dados_ia.get("badge", "🔴 DOSSIÊ CONFIDENCIAL")).strip().upper(),
+                    "texto_banner": str(dados_ia.get("titulo_amarelo", "BOMBA!")).strip().upper()[:24],
+                    "subtitulo": str(dados_ia.get("punchline_branca", "")).strip().upper()[:28]
+                })
+            else:
+                res.update({
+                    "titulo_amarelo": str(dados_ia.get("titulo_amarelo", "PODER & ESTRATÉGIA")).strip().upper()[:28],
+                    "subtitulo": str(dados_ia.get("subtitulo", "ESTUDO DE CASO EXECUTIVO")).strip().upper()[:35],
+                    "badge_txt": str(dados_ia.get("badge", "💼 BASTIDOR EXECUTIVO")).strip().upper(),
+                    "texto_banner": str(dados_ia.get("titulo_amarelo", "QUEDA BILIONÁRIA")).strip().upper()[:24]
+                })
+                
+            logger.info(f"🎨 [DIRETOR IA DE CAPA] Prompt gerado ({canal}): Prompt={p_img[:50]}...")
+            return res
+            
     except Exception as e_dir:
         logger.warning(f"Aviso no Diretor IA de Capa: {e_dir}. Usando fallback heurístico.")
 
@@ -158,9 +443,18 @@ def gerar_prompt_capa_ia(titulo: str, canal: str = "futebol", is_doc: bool = Tru
         palavras_chaves = [p.upper() for p in palavras if p.upper() not in ("PARA", "COM", "QUE", "UMA", "NUM", "SOBRE", "EM", "DO", "DA", "NO", "NA")]
         l1 = palavras_chaves[0] if palavras_chaves else "BOMBA"
         l2 = palavras_chaves[1] if len(palavras_chaves) > 1 else "REVELADO!"
-        texto_banner = f"{l1} {l2}?!"
-        subtitulo = "O PLANO SECRETO" if is_doc else "A VERDADE DOS BASTIDORES"
-        badge_txt = "🔴 DOSSIÊ CONFIDENCIAL" if is_doc else "🔥 BASTIDOR EXPLOSIVO"
+        return {
+            "prompt": prompt_visual,
+            "titulo_amarelo": f"{l1} {l2}?!",
+            "punchline_branca": "A VERDADE DOS BASTIDORES",
+            "punchline_vermelha": "DOS BASTIDORES",
+            "badge_txt": "🔴 DOSSIÊ CONFIDENCIAL" if is_doc else "🔥 BASTIDOR EXPLOSIVO",
+            "texto_banner": f"{l1} {l2}?!",
+            "subtitulo": "A VERDADE DOS BASTIDORES",
+            "nome_canal_badge": nome_canal_badge,
+            "protagonista": protagonista,
+            "aspect_ratio": aspect_ratio
+        }
 
     elif canal == "fergil":
         prompt_visual = (
@@ -171,30 +465,36 @@ def gerar_prompt_capa_ia(titulo: str, canal: str = "futebol", is_doc: bool = Tru
         palavras_chaves = [p.upper() for p in palavras if p.upper() not in ("PARA", "COM", "QUE", "UMA", "NUM", "SOBRE", "EM", "DO", "DA", "NO", "NA")]
         l1 = palavras_chaves[0] if palavras_chaves else "QUEDA"
         l2 = palavras_chaves[1] if len(palavras_chaves) > 1 else "BILIONÁRIA"
-        texto_banner = f"{l1} {l2}"
-        subtitulo = "ESTUDO DE CASO EXECUTIVO" if is_doc else "MENTALIDADE BILIONÁRIA"
-        badge_txt = "💼 BASTIDOR EXECUTIVO" if is_doc else "♟️ ESTRATÉGIA DE PODER"
+        return {
+            "prompt": prompt_visual,
+            "titulo_amarelo": f"{l1} {l2}",
+            "subtitulo": "ESTUDO DE CASO EXECUTIVO" if is_doc else "MENTALIDADE BILIONÁRIA",
+            "badge_txt": "💼 BASTIDOR EXECUTIVO" if is_doc else "♟️ ESTRATÉGIA DE PODER",
+            "texto_banner": f"{l1} {l2}",
+            "nome_canal_badge": nome_canal_badge,
+            "protagonista": protagonista,
+            "aspect_ratio": aspect_ratio
+        }
 
     else:
         # Moda Alana Cruz
         prompt_visual = (
             f"Luxury fashion editorial YouTube Shorts thumbnail (9:16 vertical), ultra-chic 8k photorealistic. "
-            f"Elegant young woman modeling trendy outfit: {protagonista}, walking in luxury penthouse / high-end boutique setting. "
-            f"Golden hour soft glamorous lighting, magazine cover aesthetic (Vogue style), vibrant colors, fabric textures, NO text, NO letters, NO words."
+            f"Wide shot of elegant model from waist to knees on an illuminated gold pedestal stage, warm golden bokeh particles, luxury boutique background, top 35% empty dark negative space with gentle sparkling gold dust, NO text, NO letters, NO words, NO watermark."
         )
-        texto_banner = "PERFEITO! ✨"
-        subtitulo = "LOOK DE LUXO BARATO"
-        badge_txt = "✨ ACHADINHO DE LUXO"
-
-    return {
-        "prompt": prompt_visual,
-        "texto_banner": texto_banner[:24].upper(),
-        "subtitulo": subtitulo[:28].upper(),
-        "badge_txt": badge_txt,
-        "nome_canal_badge": nome_canal_badge,
-        "protagonista": protagonista,
-        "aspect_ratio": aspect_ratio
-    }
+        return {
+            "prompt": prompt_visual,
+            "linha1": "ACHADINHO DE LUXO",
+            "linha2_banner": "PERFEITO!",
+            "preco": "Apenas R$ 149,90!",
+            "texto_cta": "GARANTA O SEU!",
+            "badge_txt": "✨ ACHADINHO DE LUXO",
+            "texto_banner": "PERFEITO! ✨",
+            "subtitulo": "LOOK DE LUXO BARATO",
+            "nome_canal_badge": nome_canal_badge,
+            "protagonista": protagonista,
+            "aspect_ratio": aspect_ratio
+        }
 
 
 def gerar_capa_tematica_profissional(
@@ -243,10 +543,16 @@ def gerar_capa_tematica_profissional(
         # Camada 4: Busca de Foto Oficial HD no Wikipedia / Wikimedia
         if canvas is None:
             palavras_tit = re.findall(r'[A-Z][a-zÀ-ÿ]+(?:\s+[A-Z][a-zÀ-ÿ]+)?', titulo)
-            foto_baixada = None
+            candidatos = []
+            if dados_capa.get("protagonista"):
+                candidatos.append(dados_capa["protagonista"])
             for ent in palavras_tit:
-                if ent.lower() in ("para", "com", "uma", "sobre", "futebol", "shorts", "dossiê", "documentário", "fergil", "investigação"):
-                    continue
+                if ent.lower() not in ("para", "com", "uma", "sobre", "futebol", "shorts", "dossiê", "documentário", "fergil", "investigação", "puxão", "orelha", "clima", "bomba", "tenso"):
+                    if ent not in candidatos:
+                        candidatos.append(ent)
+            
+            foto_baixada = None
+            for ent in candidatos:
                 q = urllib.parse.quote(ent)
                 urls_wiki = [
                     f"https://pt.wikipedia.org/w/api.php?action=query&titles={q}&prop=pageimages&format=json&pithumbsize=1280",
@@ -310,68 +616,18 @@ def gerar_capa_tematica_profissional(
         enhancer_c = ImageEnhance.Color(canvas)
         canvas = enhancer_c.enhance(1.18)
         
-        # Adicionar Overlay de Luz Dramática e Sombra para Leitura
-        overlay = Image.new("RGBA", (largura, altura), (0, 0, 0, 0))
-        ov_draw = ImageDraw.Draw(overlay)
-        
-        if is_doc:
-            # Gradiente horizontal escuro na esquerda para destacar os textos em 16:9
-            for x in range(int(largura * 0.58)):
-                alpha = int(225 * (1 - (x / (largura * 0.58))))
-                ov_draw.line([(x, 0), (x, altura)], fill=(0, 0, 0, alpha))
+        # Composição Especializada por Canal Baseada nos Benchmarks de Alto CTR
+        if canal == "moda":
+            # Aplica o layout idêntico à vitrine de luxo / boutique (Selo Oferta, Faixa Inclinada, Preço, CTA e Rodapé de Conversão)
+            canvas = _compor_capa_vitrine_afiliado(canvas, dados_capa)
+        elif canal == "futebol":
+            # Aplica o layout Dossiê Investigativo (Painel de cortiça, fios vermelhos, fotos pinadas e carimbos confidenciais)
+            canvas = _compor_capa_dossie_futebol(canvas, dados_capa, is_doc=is_doc)
+        elif canal == "fergil":
+            # Aplica o layout Executivo Wall Street (Azul marinho, grafite, tipografia dourada e badge corporativo)
+            canvas = _compor_capa_executiva_fergil(canvas, dados_capa, is_doc=is_doc)
         else:
-            # Gradiente vertical escuro no topo e rodapé para 9:16
-            for y in range(int(altura * 0.35)):
-                alpha = int(220 * (1 - (y / (altura * 0.35))))
-                ov_draw.line([(0, y), (largura, y)], fill=(0, 0, 0, alpha))
-            for y in range(int(altura * 0.65), altura):
-                alpha = int(230 * ((y - altura * 0.65) / (altura * 0.35)))
-                ov_draw.line([(0, y), (largura, y)], fill=(0, 0, 0, alpha))
-                
-        canvas = Image.alpha_composite(canvas.convert("RGBA"), overlay).convert("RGB")
-        draw = ImageDraw.Draw(canvas)
-        
-        # Cores temáticas por canal
-        if canal == "fergil":
-            cor_badge_bg = (18, 30, 55)
-            cor_badge_texto = (255, 215, 0) # Dourado
-            cor_texto_principal = (255, 215, 0) # Dourado vibrante
-        elif canal == "moda":
-            cor_badge_bg = (210, 30, 90)
-            cor_badge_texto = (255, 255, 255)
-            cor_texto_principal = (255, 235, 180) # Dourado suave / champanhe
-        else:
-            cor_badge_bg = (210, 25, 25) # Vermelho alerta
-            cor_badge_texto = (255, 255, 255)
-            cor_texto_principal = (255, 235, 20) # Amarelo esportivo de alto contraste
-
-        # Tipografia de Alto Impacto
-        if is_doc:
-            font_badge = _obter_fonte(26, "impact")
-            font_xl = _obter_fonte(82, "impact")
-            font_sub = _obter_fonte(40, "impact")
-            
-            # Badge de Dossiê / Exclusivo no topo esquerdo
-            badge_largura = 460 if canal != "fergil" else 420
-            draw.rectangle([50, 45, 50 + badge_largura, 95], fill=cor_badge_bg)
-            draw.text((65, 54), dados_capa["badge_txt"], font=font_badge, fill=cor_badge_texto)
-            
-            # Título Chamativo Gigante (2-3 palavras complementares)
-            _desenhar_texto_com_borda(draw, (50, 115), dados_capa["texto_banner"], font_xl, cor_texto=cor_texto_principal, stroke_w=10)
-            _desenhar_texto_com_borda(draw, (50, 235), dados_capa["subtitulo"], font_sub, cor_texto=(255, 255, 255), stroke_w=8)
-            
-            # Marca do canal no canto superior direito
-            _desenhar_texto_com_borda(draw, (largura - 300, 45), dados_capa["nome_canal_badge"], font_badge, cor_texto=(230, 230, 230), stroke_w=4)
-        else:
-            font_badge = _obter_fonte(32, "impact")
-            font_xl = _obter_fonte(74, "impact")
-            font_sub = _obter_fonte(44, "impact")
-            
-            draw.rectangle([40, 60, largura - 40, 130], fill=cor_badge_bg)
-            draw.text((65, 75), dados_capa["badge_txt"], font=font_badge, fill=cor_badge_texto)
-            
-            _desenhar_texto_com_borda(draw, (40, 155), dados_capa["texto_banner"], font_xl, cor_texto=cor_texto_principal, stroke_w=10)
-            _desenhar_texto_com_borda(draw, (40, altura - 180), dados_capa["subtitulo"], font_sub, cor_texto=(255, 255, 255), stroke_w=8)
+            canvas = _compor_capa_dossie_futebol(canvas, dados_capa, is_doc=is_doc)
 
         # Salva na máxima qualidade JPEG
         canvas.save(output_path, "JPEG", quality=95)
