@@ -1387,30 +1387,34 @@ def processar_video(task_id: str, titulo: str, tipo: str, uploaded_image_paths: 
             TASKS[task_id]["file_path"] = final_path
             TASKS[task_id]["file_name"] = final_filename
             
-            # Pacote Completo de Postagem (1-Clique)
+            # Pacote Completo de Postagem (1-Clique) com Portão de Qualidade CTR
             link_display = link_afiliado if link_afiliado else "https://s.click.aliexpress.com/..."
             preco_txt = f" (Apenas {preco_afiliado})" if preco_afiliado else ""
+            auditoria_ctr = None
+            from app.services import dual_ai_editor
+
             if canal_tarefa == "fergil":
-                from app.services import dual_ai_editor
+                auditoria_ctr = dual_ai_editor.auditar_e_refinar_titulo_ctr(titulo, canal="fergil", is_doc=is_doc)
+                titulo_otimizado = auditoria_ctr.get("titulo_final", titulo)
                 if is_doc:
-                    post_titulo = f"{titulo[:58]}"
+                    post_titulo = f"{titulo_otimizado[:55]}"
                     tags_virais = (
-                        f"FERGIL, {titulo[:35]}, documentario negocios, mentalidade financeira, "
+                        f"FERGIL, {titulo_otimizado[:35]}, documentario negocios, mentalidade financeira, "
                         "inteligencia artificial, podcasts executivos, wall street, bilionarios, "
                         "sam altman, steve jobs, elon musk, nvidia, tecnologia, documentario economia"
                     )
                     from app.services import smart_metadata_cleaner
-                    post_desc = smart_metadata_cleaner.gerar_descricao_inteligente(titulo, canal="fergil", tipo="doc")
+                    post_desc = smart_metadata_cleaner.gerar_descricao_inteligente(titulo_otimizado, canal="fergil", tipo="doc")
                     post_coment = "💼 Qual lição deste caso você aplicará em seus negócios hoje? Comente abaixo e INSCREVA-SE na @FERGIL! 👇"
                 else:
-                    post_titulo = f"{titulo[:55]} #Shorts"
+                    post_titulo = f"{titulo_otimizado[:52]} #Shorts"
                     tags_virais = (
-                        f"FERGIL, {titulo[:35]}, mentalidade, negocios, investimentos, "
+                        f"FERGIL, {titulo_otimizado[:35]}, mentalidade, negocios, investimentos, "
                         "inteligencia artificial, podcasts, dinheiro, riqueza, desenvolvimento pessoal, "
                         "motivacao, disciplina, lideranca, shorts, elon musk, sam altman, nvidia"
                     )
                     post_desc = (
-                        f"💡 INSIGHT EXECUTIVO: {titulo}\n\n"
+                        f"💡 INSIGHT EXECUTIVO: {titulo_otimizado}\n\n"
                         f"No canal FERGIL, decodificamos os bastidores dos maiores impérios de negócios, "
                         f"inteligência artificial, finanças e mentalidade estratégica do planeta.\n\n"
                         f"🎬 Assista ao DOCUMENTÁRIO COMPLETO e aprofundado sobre este caso no canal @FERGIL!\n\n"
@@ -1422,6 +1426,8 @@ def processar_video(task_id: str, titulo: str, tipo: str, uploaded_image_paths: 
             elif is_afiliado:
                 from app.services import viral_fashion_hooks
                 post_titulo = viral_fashion_hooks.gerar_titulo_viral_shorts(titulo, categoria=cat_detectada)
+                auditoria_ctr = dual_ai_editor.auditar_e_refinar_titulo_ctr(post_titulo, canal="moda", is_doc=False)
+                post_titulo = auditoria_ctr.get("titulo_final", post_titulo)[:55]
                 tags_virais = (
                     f"Alana Cruz, {titulo[:35]}, moda feminina 2026, achadinhos aliexpress, vestido elegante, "
                     "vestido de festa, looks elegantes, roupa feminina barata, look old money, vestido que modela o corpo, "
@@ -1435,28 +1441,29 @@ def processar_video(task_id: str, titulo: str, tipo: str, uploaded_image_paths: 
                 )
                 post_coment = f"🛍️ Meninas, o link oficial com cupom de desconto promocional está aqui:\n👉 {link_display} 💕"
             elif is_doc:
-                from app.services import dual_ai_editor
                 titulo_outlier = dual_ai_editor.gerar_titulo_viral_outlier_futebol(titulo, is_doc=True)
-                post_titulo = f"{titulo_outlier[:85]}"
+                auditoria_ctr = dual_ai_editor.auditar_e_refinar_titulo_ctr(titulo_outlier, canal="futebol", is_doc=True)
+                post_titulo = f"{auditoria_ctr.get('titulo_final', titulo_outlier)[:55]}"
                 tags_virais = (
                     "Futebol Invisível, Goal Fut, Futirinhas, Arena News, Tode, FUTFLIX, CazéTV, TNT Sports Brasil, "
                     "Globo Esporte, Ge Globo, ESPN Brasil, Jovem Pan Esportes, Endrick, Estêvão, Vini Jr, Ancelotti, "
                     "Flamengo, Filipe Luís, Palmeiras, Abel Ferreira, Corinthians, Real Madrid, Barcelona, Mercado da Bola"
                 )
                 from app.services import smart_metadata_cleaner
-                post_desc = smart_metadata_cleaner.gerar_descricao_inteligente(titulo_outlier, canal="futebol", tipo="doc")
+                post_desc = smart_metadata_cleaner.gerar_descricao_inteligente(post_titulo, canal="futebol", tipo="doc")
                 post_coment = "🔥 Deixe sua opinião sincera nos comentários e INSCREVA-SE no canal para não perder o próximo episódio desta investigação! 👇⚽"
             else:
-                from app.services import dual_ai_editor
                 titulo_outlier_sh = dual_ai_editor.gerar_titulo_viral_outlier_futebol(titulo, is_doc=False)
-                post_titulo = f"{titulo_outlier_sh[:65]} #futebol #shorts"
+                auditoria_ctr = dual_ai_editor.auditar_e_refinar_titulo_ctr(titulo_outlier_sh, canal="futebol", is_doc=False)
+                t_sh_final = auditoria_ctr.get('titulo_final', titulo_outlier_sh)
+                post_titulo = f"{t_sh_final[:48]} #shorts"
                 tags_virais = (
                     "Futebol Invisível, Verner, Driblaê, rosarinho fc, Insiderfut01, KARLUS DANIEU, BIDO FC, "
                     "Central do futebol, Vernerzinho, Futebox, Minuto 93, Goal Fut, Jovem Pan Esportes, CazéTV, "
                     "Endrick, Estêvão, Vini Jr, Raphinha, Flamengo, Palmeiras, Corinthians, Real Madrid, shorts futebol"
                 )
                 post_desc = (
-                    f"🚨 Bastidores explosivos: {titulo}!\n\n"
+                    f"🚨 Bastidores explosivos: {post_titulo}!\n\n"
                     f"🔥 Inscreva-se no @FutebolInvisivelOficial para não perder os dossiês diários do futebol brasileiro e europeu!\n\n"
                     f"💬 Qual a sua opinião? Comente abaixo!\n\n"
                     f"#futebol #futebolbrasileiro #shorts #futebolinvisivel #brasileirao #corinthians #flamengo #palmeiras #vinijr #lamineyamal #cristianoronaldo #messi"
@@ -1467,6 +1474,9 @@ def processar_video(task_id: str, titulo: str, tipo: str, uploaded_image_paths: 
             TASKS[task_id]["post_descricao"] = post_desc
             TASKS[task_id]["post_tags"] = tags_virais
             TASKS[task_id]["post_comentario"] = post_coment
+            if auditoria_ctr:
+                TASKS[task_id]["ctr_score"] = auditoria_ctr.get("score")
+                TASKS[task_id]["ctr_motivo"] = auditoria_ctr.get("motivo")
             
             # Salvar ficheiro .TXT completo com as informações para guardar e postar depois
             txt_filename = final_filename.rsplit('.', 1)[0] + "_POSTAGEM.txt"
@@ -1478,9 +1488,17 @@ def processar_video(task_id: str, titulo: str, tipo: str, uploaded_image_paths: 
                 f_txt.write(f"FICHA DE POSTAGEM - {prefix}\n")
                 f_txt.write("====================================================\n\n")
                 f_txt.write(f"📌 TÍTULO DO VÍDEO:\n{post_titulo}\n\n")
+                if auditoria_ctr:
+                    f_txt.write(f"🎯 VALIDADOR DE CTR (SCORE: {auditoria_ctr.get('score', 80)}/100):\n")
+                    f_txt.write(f"• Diagnóstico: {auditoria_ctr.get('motivo')}\n")
+                    if auditoria_ctr.get('foi_refinado'):
+                        f_txt.write(f"• Título Original: {auditoria_ctr.get('titulo_original')}\n")
+                        f_txt.write(f"• Título Refinado: {auditoria_ctr.get('titulo_final')}\n")
+                    if auditoria_ctr.get('alternativas'):
+                        f_txt.write(f"• Alternativas Geradas: {', '.join(auditoria_ctr.get('alternativas'))}\n")
+                    f_txt.write("\n")
                 if not is_afiliado:
                     try:
-                        from app.services import dual_ai_editor
                         sug_capa = dual_ai_editor.gerar_sugestao_thumbnail_complementar(post_titulo, canal=canal_tarefa)
                         f_txt.write(f"🎨 DIRETRIZ DE MINIATURA (THUMBNAIL COMPLEMENTAR - NÃO REPETIR O TÍTULO):\n{sug_capa}\n\n")
                     except Exception:

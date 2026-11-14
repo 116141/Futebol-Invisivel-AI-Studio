@@ -134,6 +134,146 @@ def gerar_titulo_viral_outlier_futebol(titulo_bruto: str, is_doc: bool = False) 
     return t_limpo[:55]
 
 
+def auditar_e_refinar_titulo_ctr(
+    titulo: str, 
+    canal: str = "futebol", 
+    is_doc: bool = False
+) -> dict:
+    """
+    Validador Automático de CTR Pré-Postagem (Inspirado no Thesilentprogramer/youtube-pattern-finder):
+    Portão de qualidade com IA (Groq) que pontua os títulos propostos de 0 a 100 com base em:
+    - Curiosity Gap (Lacuna de curiosidade sem entregar a manchete inteira) [30 pts]
+    - Gatilhos Emocionais / Conflito / Alto Risco / Cifras [25 pts]
+    - Ímã de Audiência / Protagonista Claro (Pessoa, Clube, Bilionário, Marca) [25 pts]
+    - Mobile Readiness (< 55 caracteres, sem palavras proibidas como 'Documentário') [20 pts]
+
+    Se a pontuação for < 80:
+    Refina e reconstrói automaticamente o título gerando alternativas magnéticas >= 85,
+    selecionando a melhor versão para garantir máxima taxa de clique (CTR) antes de renderizar/postar.
+    """
+    t_limpo = re.sub(r'\s*-\s*(ge|UOL|ESPN|Lance!?|TNT Sports|Jovem Pan).*$', '', titulo, flags=re.IGNORECASE).strip()
+    t_limpo = re.sub(r'[\<\>\"\|]', '', t_limpo).strip()
+    t_limpo = re.sub(r'(?i)\bdocument[áa]rio(\s+investigativo|\s+executivo)?\b', '', t_limpo).strip()
+
+    prompt = f"""
+    Você é o Auditor-Chefe de CTR e Embalagem (Packaging) do YouTube, especialista nos padrões de recomendação do YouTube Studio.
+    Avalie o título proposto para o canal '{canal.upper()}' (Formato: {'Documentário 16:9' if is_doc else 'Short 9:16'}):
+    Título Atual: "{t_limpo}"
+
+    CRITÉRIOS DE AUDITORIA DE CTR (Total de 0 a 100 pontos):
+    1. CURIOSITY GAP (0 a 30 pts): O título gera uma dúvida irresistível sem entregar a notícia inteira? Títulos que entregam tudo (ex: "Jogador X marca gol na vitória de Y") perdem pontos. Títulos com segredos, motivos ocultos ou perguntas intrigantes ganham nota máxima.
+    2. EMOÇÃO & ALTO RISCO (0 a 25 pts): Há tensão, crise, cifras milionárias/bilionárias, reviravolta, perigo ou polêmica?
+    3. ÍMÃ DE AUDIÊNCIA (0 a 25 pts): O protagonista (jogador, clube, bilionário, empresa) está evidente ou o tema de moda é claramente desejável?
+    4. MOBILE READY (0 a 20 pts): Tem MENOS de 55 caracteres para não ser cortado no telemóvel? Não usa termos proibidos como 'Documentário' ou 'Episódio'?
+
+    EXIGÊNCIA:
+    - Se a soma dos pontos for < 80: Forneça obrigatoriamente um "titulo_refinado" de alta performance com MENOS DE 55 CARACTERES, preservando os mesmos fatos/protagonistas, além de 2 alternativas.
+    - Se a soma for >= 80: "titulo_refinado" deve ser o próprio título avaliado (ou levemente polido se necessário).
+
+    Responda EXCLUSIVAMENTE em formato JSON:
+    {{
+        "score": 0 a 100,
+        "aprovado": true ou false,
+        "motivo": "Diagnóstico cirúrgico em 1 frase",
+        "curiosity_gap_pts": 0 a 30,
+        "emocao_pts": 0 a 25,
+        "ima_pts": 0 a 25,
+        "mobile_pts": 0 a 20,
+        "titulo_refinado": "Título final pronto (< 55 caracteres)",
+        "alternativas": ["Opção 1 (< 55 chars)", "Opção 2 (< 55 chars)"]
+    }}
+    """
+    try:
+        cfg_groq = _obter_groq_config()
+        resp = llm._generate_response(prompt=prompt, app_config=cfg_groq)
+        match = re.search(r'\{.*\}', resp, re.DOTALL)
+        if match:
+            dados = json.loads(match.group(0))
+            score = int(dados.get("score", 70))
+            aprovado = score >= 80
+            tit_ref = str(dados.get("titulo_refinado", t_limpo)).strip().strip('"').strip("'")
+            tit_ref = re.sub(r'[\<\>\"\|]', '', tit_ref)
+            tit_ref = re.sub(r'(?i)\bdocument[áa]rio(\s+investigativo|\s+executivo)?\b', '', tit_ref).strip()
+            
+            # Se a IA retornou algo longo (>58 chars), trunca ou usa uma alternativa mais curta
+            if len(tit_ref) > 58:
+                for alt in dados.get("alternativas", []):
+                    alt_limpa = re.sub(r'[\<\>\"\|]', '', str(alt)).strip()
+                    if 15 <= len(alt_limpa) <= 55:
+                        tit_ref = alt_limpa
+                        break
+                if len(tit_ref) > 58:
+                    tit_ref = tit_ref[:55].rstrip()
+
+            resultado = {
+                "score": score,
+                "aprovado": aprovado,
+                "motivo": dados.get("motivo", "Auditado via Groq Llama 3.3"),
+                "titulo_original": t_limpo,
+                "titulo_final": tit_ref if not aprovado else (tit_ref or t_limpo),
+                "foi_refinado": not aprovado or tit_ref != t_limpo,
+                "detalhes": {
+                    "curiosity_gap": dados.get("curiosity_gap_pts", 20),
+                    "emocao": dados.get("emocao_pts", 18),
+                    "ima": dados.get("ima_pts", 20),
+                    "mobile": dados.get("mobile_pts", 15),
+                    "tamanho_chars": len(tit_ref)
+                },
+                "alternativas": dados.get("alternativas", [])
+            }
+            logger.info(f"🎯 [VALIDADOR CTR] '{t_limpo[:35]}...' -> Score: {score}/100 | Final: '{resultado['titulo_final']}' (Refinado: {resultado['foi_refinado']})")
+            return resultado
+    except Exception as e:
+        logger.warning(f"Aviso no validador de CTR Groq: {e}")
+
+    # Fallback determinístico e heurístico (100% Gratuito / Offline)
+    score_heuristico = 70
+    motivo_h = "Avaliado via motor heurístico de padrões virais"
+    
+    t_len = len(t_limpo)
+    if t_len <= 55:
+        score_heuristico += 15
+    elif t_len > 70:
+        score_heuristico -= 15
+
+    palavras_impacto = ["segredo", "plano", "verdade", "queda", "por que", "como", "bilh", "milh", "reunião", "escândalo", "crise", "choque", "alerta", "revelado"]
+    if any(p in t_limpo.lower() for p in palavras_impacto):
+        score_heuristico += 12
+
+    tit_final_h = t_limpo
+    foi_ref = False
+    if score_heuristico < 80:
+        if canal == "futebol":
+            tit_final_h = gerar_titulo_viral_outlier_futebol(t_limpo, is_doc=is_doc)
+            foi_ref = True
+            score_heuristico = 86
+            motivo_h = "Título reestruturado com fórmula outlier de alta curiosidade"
+        elif canal == "fergil":
+            tit_final_h = f"A Verdade Oculta Por Trás de {t_limpo[:30]}"[:55]
+            foi_ref = True
+            score_heuristico = 85
+            motivo_h = "Título otimizado para reflexão de alto impacto e bastidores"
+        else:
+            tit_final_h = t_limpo[:55]
+
+    return {
+        "score": score_heuristico,
+        "aprovado": score_heuristico >= 80,
+        "motivo": motivo_h,
+        "titulo_original": t_limpo,
+        "titulo_final": tit_final_h[:55],
+        "foi_refinado": foi_ref,
+        "detalhes": {
+            "curiosity_gap": 22,
+            "emocao": 20,
+            "ima": 22,
+            "mobile": 18,
+            "tamanho_chars": len(tit_final_h[:55])
+        },
+        "alternativas": []
+    }
+
+
 def gerar_sugestao_thumbnail_complementar(titulo_final: str, canal: str = "futebol") -> str:
     """
     Gera os 3 Conceitos de Miniatura (Thumbnail) com 2 a 3 palavras de alto contraste que COMPLEMENTAM

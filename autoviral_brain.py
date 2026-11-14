@@ -17,6 +17,8 @@ DB_PATH = os.path.join(DB_DIR, "autoviral_memory.db")
 YOUTUBE_FUTEBOL_SHORTS = "https://www.youtube.com/@FutebolInvisivelOficial/shorts"
 YOUTUBE_FUTEBOL_VIDEOS = "https://www.youtube.com/@FutebolInvisivelOficial/videos"
 YOUTUBE_MODA_SHORTS = "https://www.youtube.com/@AlanaCruzOficial/shorts"
+YOUTUBE_FERGIL_SHORTS = "https://www.youtube.com/@fergiloficial/shorts"
+YOUTUBE_FERGIL_VIDEOS = "https://www.youtube.com/@fergiloficial/videos"
 
 
 def get_conn() -> sqlite3.Connection:
@@ -540,13 +542,21 @@ def _extrair_videos_canal_api(canal_nome: str, max_videos: int = 50) -> List[Dic
     """Coleta métricas reais em tempo real usando a chave oficial da YouTube Data API v3."""
     if canal_nome == "futebol":
         api_key = os.getenv("YOUTUBE_API_KEY_FUTEBOL", "").strip() or os.getenv("YOUTUBE_API_KEY", "").strip()
+        channel_param = "forHandle=FutebolInvisivelOficial"
+        handle_log = "FutebolInvisivelOficial"
+    elif canal_nome == "fergil":
+        api_key = os.getenv("YOUTUBE_API_KEY_FERGIL", "").strip() or os.getenv("YOUTUBE_API_KEY", "").strip()
+        channel_id = os.getenv("YOUTUBE_CHANNEL_ID_FERGIL", "UC-6f_VCntpqu-lYLwcmFKYg").strip()
+        channel_param = f"id={channel_id}"
+        handle_log = "fergiloficial"
     else:
         api_key = os.getenv("YOUTUBE_API_KEY_MODA", "").strip() or os.getenv("YOUTUBE_API_KEY", "").strip()
+        channel_param = "forHandle=AlanaCruzOficial"
+        handle_log = "AlanaCruzOficial"
     if not api_key:
         return []
     
-    handle = "AlanaCruzOficial" if canal_nome == "moda" else "FutebolInvisivelOficial"
-    url_chan = f"https://www.googleapis.com/youtube/v3/channels?part=contentDetails,statistics,snippet&forHandle={handle}&key={api_key}"
+    url_chan = f"https://www.googleapis.com/youtube/v3/channels?part=contentDetails,statistics,snippet&{channel_param}&key={api_key}"
     
     import urllib.request
     import json
@@ -557,28 +567,43 @@ def _extrair_videos_canal_api(canal_nome: str, max_videos: int = 50) -> List[Dic
         with urllib.request.urlopen(req, timeout=12) as resp:
             data = json.loads(resp.read().decode("utf-8"))
         items = data.get("items", [])
-        if not items:
-            return []
-        
-        uploads_playlist_id = items[0]["contentDetails"]["relatedPlaylists"]["uploads"]
-        
-        # Buscar vídeos da playlist de uploads com paginação contínua (até max_videos)
-        playlist_items = []
-        next_page = None
-        while len(playlist_items) < max_videos:
-            page_param = f"&pageToken={next_page}" if next_page else ""
-            url_playlist = f"https://www.googleapis.com/youtube/v3/playlistItems?part=snippet,contentDetails&playlistId={uploads_playlist_id}&maxResults={min(50, max_videos - len(playlist_items))}{page_param}&key={api_key}"
-            with urllib.request.urlopen(urllib.request.Request(url_playlist, headers={"User-Agent": "Mozilla/5.0"}), timeout=12) as resp:
-                pl_data = json.loads(resp.read().decode("utf-8"))
-            novos = pl_data.get("items", [])
-            if not novos:
-                break
-            playlist_items.extend(novos)
-            next_page = pl_data.get("nextPageToken")
-            if not next_page:
-                break
+        video_ids = []
+        if items:
+            uploads_playlist_id = items[0]["contentDetails"]["relatedPlaylists"]["uploads"]
+            # Buscar vídeos da playlist de uploads com paginação contínua (até max_videos)
+            playlist_items = []
+            next_page = None
+            while len(playlist_items) < max_videos:
+                page_param = f"&pageToken={next_page}" if next_page else ""
+                url_playlist = f"https://www.googleapis.com/youtube/v3/playlistItems?part=snippet,contentDetails&playlistId={uploads_playlist_id}&maxResults={min(50, max_videos - len(playlist_items))}{page_param}&key={api_key}"
+                with urllib.request.urlopen(urllib.request.Request(url_playlist, headers={"User-Agent": "Mozilla/5.0"}), timeout=12) as resp:
+                    pl_data = json.loads(resp.read().decode("utf-8"))
+                novos = pl_data.get("items", [])
+                if not novos:
+                    break
+                playlist_items.extend(novos)
+                next_page = pl_data.get("nextPageToken")
+                if not next_page:
+                    break
             
-        video_ids = [it["contentDetails"]["videoId"] for it in playlist_items]
+            video_ids = [it["contentDetails"]["videoId"] for it in playlist_items]
+        
+        # Também verifica vídeos gravados localmente para este canal com youtube_video_id
+        try:
+            conn_loc = get_conn()
+            cur_loc = conn_loc.cursor()
+            cur_loc.execute(
+                "SELECT youtube_video_id FROM videos_gerados WHERE canal = ? AND youtube_video_id IS NOT NULL AND youtube_video_id != ''",
+                (canal_nome,)
+            )
+            local_ids = [r[0] for r in cur_loc.fetchall()]
+            conn_loc.close()
+            for lid in local_ids:
+                if lid not in video_ids:
+                    video_ids.append(lid)
+        except Exception as e_loc:
+            logger.debug(f"Aviso ao consultar IDs locais de {canal_nome}: {e_loc}")
+
         if not video_ids:
             return []
             
@@ -596,14 +621,14 @@ def _extrair_videos_canal_api(canal_nome: str, max_videos: int = 50) -> List[Dic
                 resultados.append({
                     "video_id": vid_id,
                     "canal": canal_nome,
-                    "formato": "short",
+                    "formato": "short" if "short" in sn.get("title", "").lower() or "shorts" in sn.get("description", "").lower() else "doc",
                     "titulo": sn.get("title", ""),
                     "views": int(st.get("viewCount", 0)),
                     "likes": int(st.get("likeCount", 0)),
                     "upload_date": sn.get("publishedAt", "")[:10].replace("-", ""),
                     "url": f"https://www.youtube.com/watch?v={vid_id}"
                 })
-        logger.info(f"YouTube Data API v3: Coletados {len(resultados)} vídeos com métricas em tempo real para @{handle}!")
+        logger.info(f"YouTube Data API v3: Coletados {len(resultados)} vídeos com métricas em tempo real para @{handle_log}!")
     except Exception as e:
         logger.warning(f"Erro ao consultar YouTube Data API v3: {e}")
     return resultados
@@ -660,7 +685,7 @@ def _extrair_videos_canal(url_canal: str, canal_nome: str, formato: str, max_vid
 
 def sincronizar_metricas_e_aprender() -> Dict:
     """
-    1. Coleta visualizações e likes reais de TODOS os vídeos do YouTube (@AlanaCruzOficial e @FutebolInvisivelOficial).
+    1. Coleta visualizações e likes reais de TODOS os vídeos do YouTube (@AlanaCruzOficial, @FutebolInvisivelOficial e @fergiloficial).
     2. Coleta encomendas/comissões da API oficial do AliExpress.
     3. Re-escreve a estratégia de Ganchos e Títulos (Self-Learning Loop) com base nos campeões reais.
     """
@@ -669,14 +694,18 @@ def sincronizar_metricas_e_aprender() -> Dict:
     # 1. Tenta coletar primeiro via YouTube Data API v3 oficial (em tempo real)
     api_moda = _extrair_videos_canal_api("moda", max_videos=200)
     api_futebol = _extrair_videos_canal_api("futebol", max_videos=200)
-    if api_moda or api_futebol:
+    api_fergil = _extrair_videos_canal_api("fergil", max_videos=200)
+    if api_moda or api_futebol or api_fergil:
         todos_videos.extend(api_moda)
         todos_videos.extend(api_futebol)
+        todos_videos.extend(api_fergil)
     else:
         # Fallback para scraping yt-dlp
         todos_videos.extend(_extrair_videos_canal(YOUTUBE_MODA_SHORTS, "moda", "short", max_videos=200))
         todos_videos.extend(_extrair_videos_canal(YOUTUBE_FUTEBOL_SHORTS, "futebol", "short", max_videos=200))
         todos_videos.extend(_extrair_videos_canal(YOUTUBE_FUTEBOL_VIDEOS, "futebol", "doc", max_videos=200))
+        todos_videos.extend(_extrair_videos_canal(YOUTUBE_FERGIL_SHORTS, "fergil", "short", max_videos=200))
+        todos_videos.extend(_extrair_videos_canal(YOUTUBE_FERGIL_VIDEOS, "fergil", "doc", max_videos=200))
 
     conn = get_conn()
     cur = conn.cursor()
@@ -696,13 +725,31 @@ def sincronizar_metricas_e_aprender() -> Dict:
     vendas = aliexpress_affiliate.fetch_affiliate_orders()
 
     estrategias = {}
-    for canal in ["moda", "futebol"]:
-        handle_real = "AlanaCruzOficial" if canal == "moda" else "FutebolInvisivelOficial"
+    for canal in ["moda", "futebol", "fergil"]:
+        if canal == "moda":
+            handle_real = "AlanaCruzOficial"
+            canal_desc = "Moda Feminina & Estilo Maduro (Alana Cruz)"
+        elif canal == "futebol":
+            handle_real = "FutebolInvisivelOficial"
+            canal_desc = "Futebol Invisível (Investigação & Dossiês de Futebol)"
+        else:
+            handle_real = "fergiloficial"
+            canal_desc = "FERGIL (Negócios, Bilionários, Finanças & Inteligência Artificial)"
+
         cur.execute(
             "SELECT * FROM metricas_youtube WHERE canal = ? ORDER BY views DESC",
             (canal,)
         )
         vids = [dict(r) for r in cur.fetchall()]
+        
+        # Se metricas_youtube estiver vazia para o canal, consulta vídeos já postados/gerados localmente
+        if not vids:
+            cur.execute(
+                "SELECT titulo, criado_em as upload_date, youtube_video_id as video_id FROM videos_gerados WHERE canal = ? ORDER BY rowid DESC LIMIT 15",
+                (canal,)
+            )
+            vids = [{"titulo": r["titulo"], "views": 0, "likes": 0, "upload_date": r["upload_date"] or agora, "video_id": r["video_id"] or ""} for r in cur.fetchall()]
+
         top_vids = vids[:3]
         low_vids = vids[-2:] if len(vids) > 2 else []
 
@@ -720,7 +767,7 @@ def sincronizar_metricas_e_aprender() -> Dict:
         low_titulos_str = "\n".join([f"- ⚠️ '{v['titulo']}' ({v['views']} views)" for v in low_vids[-3:]])
         
         prompt_analise = f"""
-        Você é o Estrategista-Chefe do Canal '{canal.upper()}'.
+        Você é o Estrategista-Chefe do Canal '{canal_desc}'.
         Acabamos de puxar via API Oficial do YouTube as métricas REAIS do canal em tempo real:
         - Total de vídeos analisados: {len(vids)}
         - Média de visualizações por vídeo: {media_views} views
@@ -760,6 +807,17 @@ def sincronizar_metricas_e_aprender() -> Dict:
                     f"   - Produzir imediatamente variações dos 3 temas campeões comprovados: 1) Escândalos financeiros / bastidores judiciais (Manchester City / Fair Play), 2) Blindagem contratual / Multas astronômicas (Lamine Yamal / Vini Jr), 3) Crises de vestiário e fugas de astros (Cristiano Ronaldo / Neymar).\n"
                     f"3. FÓRMULA DE GANCHO & TÍTULO RECOMENDADA:\n"
                     f"   - Comece nos primeiros 3s revelando uma quantia chocante ou um fato proibido (ex: 'A cláusula secreta de 1 bilhão...', 'O documento que a UEFA tentou esconder...')."
+                )
+            elif canal == "fergil":
+                diagnostico_ia = (
+                    f"1. DIAGNÓSTICO DO CANAL FERGIL ({len(vids)} vídeos / Média {media_views} views):\n"
+                    f"   - Os temas de maior tração e interesse executivo foram: '{melhor_titulo}' ({melhor_views} views), "
+                    f"'{top_vids[1]['titulo'] if len(top_vids)>1 else ''}' ({top_vids[1]['views'] if len(top_vids)>1 else 0} views).\n"
+                    f"   - O que flopou: Pautas teóricas sem cifras ou sem figuras icônicas no comando ({pior_views} views).\n"
+                    f"2. O QUE PRODUZIR AGORA (DIRETRIZ IMEDIATA):\n"
+                    f"   - Focar nos pilares campeões: 1) Psicologia da Riqueza e Modelos Mentais de Bilionários (Buffett, Dalio, Jobs, Musk), 2) Quedas astronômicas e perdas de patrimônio (Crises, Bolhas, Fundo do Poço), 3) Revolução da IA e Impérios Invisíveis.\n"
+                    f"3. FÓRMULA DE GANCHO & TÍTULO RECOMENDADA:\n"
+                    f"   - Comece nos primeiros 3s quebrando um senso comum com valor em dólar ou decisão contraintuitiva (ex: 'O segredo de 1 bilhão que ninguém fala...', 'Por que os mais ricos do mundo recusam...')."
                 )
             else:
                 diagnostico_ia = (

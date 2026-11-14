@@ -36,6 +36,7 @@ def disparar_producao_video_futebol(is_doc: bool = False, titulo_especifico: str
     """Gera autonomamente um vídeo de futebol com base nas tendências quentes."""
     try:
         import app_render_studio
+        from app.services import dual_ai_editor
         if titulo_especifico:
             titulo_noticia = titulo_especifico
         else:
@@ -48,6 +49,12 @@ def disparar_producao_video_futebol(is_doc: bool = False, titulo_especifico: str
                     break
 
         tipo_v = "doc" if is_doc else "short"
+        # Validação e Otimização Pré-Produção de CTR
+        auditoria = dual_ai_editor.auditar_e_refinar_titulo_ctr(titulo_noticia, canal="futebol", is_doc=is_doc)
+        if auditoria.get("foi_refinado"):
+            logger.info(f"⚽ [CTR GATEWAY FUTEBOL] Título refinado: '{titulo_noticia}' -> '{auditoria.get('titulo_final')}' (Score: {auditoria.get('score')}/100)")
+            titulo_noticia = auditoria.get("titulo_final")
+
         task_id = str(uuid.uuid4())
         
         dossie = autoviral_brain.gerar_dossie_factual_e_angulo_exclusivo(
@@ -266,6 +273,13 @@ def disparar_producao_video_fergil(is_doc: bool = True, gerar_par_short: bool = 
         titulo = tema_escolhido["titulo"]
         pilar = tema_escolhido.get("pilar", "Negócios & Alta Performance")
         tipo_v = "doc" if is_doc else "short"
+        
+        # Validação e Otimização Pré-Produção de CTR para FERGIL
+        auditoria_fer = dual_ai_editor.auditar_e_refinar_titulo_ctr(titulo, canal="fergil", is_doc=is_doc)
+        if auditoria_fer.get("foi_refinado"):
+            logger.info(f"💼 [CTR GATEWAY FERGIL] Título refinado: '{titulo}' -> '{auditoria_fer.get('titulo_final')}' (Score: {auditoria_fer.get('score')}/100)")
+            titulo = auditoria_fer.get("titulo_final")
+
         task_id = str(uuid.uuid4())
         
         logger.info(f"💼 [FERGIL ESTRATÉGIA] Produzindo {tipo_v.upper()} principal: '{titulo}' (Pilar: {pilar})")
