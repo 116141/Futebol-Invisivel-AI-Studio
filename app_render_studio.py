@@ -1482,6 +1482,13 @@ def processar_video(task_id: str, titulo: str, tipo: str, uploaded_image_paths: 
             capa_filename = final_filename.rsplit('.', 1)[0] + "_CAPA.jpg"
             capa_path = os.path.join(target_dir, capa_filename)
             caminho_capa_gerada = None
+            foto_base_candidata = None
+            if is_afiliado and 'assets' in locals() and assets and assets.get("images"):
+                for img_cand in assets.get("images"):
+                    if os.path.exists(img_cand):
+                        foto_base_candidata = img_cand
+                        break
+
             try:
                 from app.services import thumbnail_engine
                 caminho_capa_gerada = thumbnail_engine.gerar_capa_tematica_profissional(
@@ -1489,6 +1496,7 @@ def processar_video(task_id: str, titulo: str, tipo: str, uploaded_image_paths: 
                     titulo=post_titulo,
                     canal=canal_tarefa,
                     is_doc=is_doc,
+                    imagem_base_path=foto_base_candidata,
                     video_path=final_path,
                     caminho_saida_personalizado=capa_path
                 )
