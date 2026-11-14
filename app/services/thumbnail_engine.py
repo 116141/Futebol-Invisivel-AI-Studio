@@ -84,70 +84,107 @@ def _gerar_fundo_pollinations(prompt: str, largura: int, altura: int) -> Optiona
 
 def gerar_prompt_capa_ia(titulo: str, canal: str = "futebol", is_doc: bool = True) -> Dict[str, str]:
     """
-    Formula o prompt temático hiper-realista e as chamadas de texto estratégicas
-    para a miniatura, integrando os conceitos de miniatura do dual_ai_editor.
+    Diretor de Arte com IA: Cria e valida dinamicamente o prompt visual cinematográfico em inglês
+    especificamente para motores de difusão (FLUX / Stable Diffusion) e gera a tipografia complementar
+    de alto CTR em português.
     """
+    aspect_ratio = "16:9" if is_doc else "9:16"
+    nome_canal_badge = "FERGIL" if canal == "fergil" else ("ALANA CRUZ" if canal == "moda" else "FUTEBOL INVISÍVEL")
+
+    # Tentativa de Direção Artística Dinâmica via Groq (Llama 3.3 70B)
+    try:
+        from app.services import llm, dual_ai_editor
+        prompt_director = f"""
+        Você é o Diretor de Arte de Miniaturas (Thumbnails) do YouTube de maior sucesso do mundo.
+        Crie a especificação visual e tipográfica perfeita para o vídeo:
+        Título: '{titulo}'
+        Canal: {canal} | Formato: {'Documentário 16:9' if is_doc else 'Short 9:16'}
+
+        REGRAS VISUAIS PARA O GERADOR DE IMAGEM (FLUX / STABLE DIFFUSION):
+        1. O prompt_imagem DEVE SER EM INGLÊS, altamente cinematográfico (estilo pôster de cinema 8K).
+        2. Descreva o protagonista, micro-expressão facial tensa/séria, iluminação dividida (split lighting volumétrica) e cenário atmosférico (chuva leve, névoa, estádio ou vidro de arranha-céu).
+        3. REGRA DE COMPOSIÇÃO: O protagonista deve ficar nos dois terços da DIREITA, deixando o terço da ESQUERDA limpo/escuro com espaço negativo para a tipografia.
+        4. PROIBIÇÃO ABSOLUTA: Termine sempre instruindo a IA a NÃO desenhar texto ou letras ('photorealistic, cinematic color grading, 85mm lens, shallow depth of field, NO text, NO letters, NO words, NO watermark').
+        5. TEXTO DE SOBREPOSIÇÃO (COMPLEMENTAR EM PORTUGUÊS): 2 a 3 palavras curtas de alto impacto que complementam o título sem repeti-lo (ex: 'O ADEUS?!', '1 BILHÃO?!', 'INVESTIGAÇÃO INTERNA').
+        6. BADGE (EM PORTUGUÊS): Selo de autoridade do canal (ex: '🔴 DOSSIÊ CONFIDENCIAL', '💼 BASTIDOR EXECUTIVO', '✨ ACHADINHO DE LUXO').
+
+        Responda EXCLUSIVAMENTE em formato JSON:
+        {{
+            "prompt_imagem": "Hyper-realistic 8k cinematic portrait of...",
+            "texto_sobreposicao": "2 a 3 palavras de alto contraste",
+            "subtitulo": "subtítulo de contexto curto",
+            "badge": "texto do selo superior",
+            "protagonista": "nome da figura central"
+        }}
+        """
+        cfg = dual_ai_editor._obter_groq_config()
+        resp = llm._generate_response(prompt=prompt_director, app_config=cfg)
+        match = re.search(r'\{.*\}', resp, re.DOTALL)
+        if match:
+            dados_ia = json.loads(match.group(0))
+            p_img = str(dados_ia.get("prompt_imagem", "")).strip()
+            if "no text" not in p_img.lower():
+                p_img += ", photorealistic, cinematic lighting, NO text, NO letters, NO watermark"
+            
+            t_banner = str(dados_ia.get("texto_sobreposicao", "REVELADO!")).strip().upper()
+            t_sub = str(dados_ia.get("subtitulo", "O PLANO SECRETO")).strip().upper()
+            t_badge = str(dados_ia.get("badge", "🔴 EXCLUSIVO")).strip().upper()
+            prot = str(dados_ia.get("protagonista", titulo[:25])).strip()
+            
+            logger.info(f"🎨 [DIRETOR IA DE CAPA] Prompt gerado para '{titulo[:30]}...': Texto='{t_banner}' | Prompt={p_img[:50]}...")
+            return {
+                "prompt": p_img,
+                "texto_banner": t_banner[:24],
+                "subtitulo": t_sub[:28],
+                "badge_txt": t_badge,
+                "nome_canal_badge": nome_canal_badge,
+                "protagonista": prot,
+                "aspect_ratio": aspect_ratio
+            }
+    except Exception as e_dir:
+        logger.warning(f"Aviso no Diretor IA de Capa: {e_dir}. Usando fallback heurístico.")
+
+    # Fallback Heurístico Robusto
     limpo = re.sub(r'[^a-zA-Z0-9À-ÖØ-öø-ÿ\s]', ' ', titulo)
     palavras = [p for p in limpo.split() if len(p) > 2]
     protagonista = " ".join(palavras[:2]) if len(palavras) >= 2 else titulo[:25]
     
-    aspect_ratio = "16:9" if is_doc else "9:16"
-    texto_complementar = ""
-    try:
-        from app.services import dual_ai_editor
-        sugestoes = dual_ai_editor.gerar_sugestao_thumbnail_complementar(titulo, canal=canal)
-        # Extrai texto de Opção 1 ou Opção 2
-        m_txt = re.findall(r'Texto:\s*([^\n\r]+)', sugestoes, re.IGNORECASE)
-        if m_txt:
-            texto_complementar = m_txt[0].strip().strip('"').strip("'").upper()
-    except Exception:
-        pass
-
     if canal == "futebol":
         prompt_visual = (
             f"Professional sports photojournalism YouTube thumbnail ({aspect_ratio}), ultra-realistic 8k. "
             f"Intense emotional portrait of {protagonista}, dramatic stadium floodlights, lens flare, rain drops, atmospheric smoke, "
-            f"confidential dossier stamps and red tactical board lines. Cinematic contrast, extreme detail, blockbuster poster."
+            f"confidential dossier stamps and red tactical board lines. Cinematic contrast, extreme detail, blockbuster poster, NO text, NO letters, NO words."
         )
-        if texto_complementar and 3 <= len(texto_complementar) <= 24:
-            texto_banner = texto_complementar
-        else:
-            palavras_chaves = [p.upper() for p in palavras if p.upper() not in ("PARA", "COM", "QUE", "UMA", "NUM", "SOBRE", "EM", "DO", "DA", "NO", "NA")]
-            l1 = palavras_chaves[0] if palavras_chaves else "BOMBA"
-            l2 = palavras_chaves[1] if len(palavras_chaves) > 1 else "REVELADO!"
-            texto_banner = f"{l1} {l2}?!"
+        palavras_chaves = [p.upper() for p in palavras if p.upper() not in ("PARA", "COM", "QUE", "UMA", "NUM", "SOBRE", "EM", "DO", "DA", "NO", "NA")]
+        l1 = palavras_chaves[0] if palavras_chaves else "BOMBA"
+        l2 = palavras_chaves[1] if len(palavras_chaves) > 1 else "REVELADO!"
+        texto_banner = f"{l1} {l2}?!"
         subtitulo = "O PLANO SECRETO" if is_doc else "A VERDADE DOS BASTIDORES"
         badge_txt = "🔴 DOSSIÊ CONFIDENCIAL" if is_doc else "🔥 BASTIDOR EXPLOSIVO"
-        nome_canal_badge = "FUTEBOL INVISÍVEL"
 
     elif canal == "fergil":
         prompt_visual = (
             f"Cinematic executive drama YouTube thumbnail ({aspect_ratio}), ultra-realistic 8k. "
             f"Moody atmospheric lighting, powerful corporate boardroom, luxury skyscrapers glass reflections, focus on {protagonista}, "
-            f"Wall Street aesthetic, stock charts, subtle gold accents, dark obsidian and deep navy blue tones, high stakes financial power."
+            f"Wall Street aesthetic, stock charts, subtle gold accents, dark obsidian and deep navy blue tones, high stakes financial power, NO text, NO letters, NO words."
         )
-        if texto_complementar and 3 <= len(texto_complementar) <= 24:
-            texto_banner = texto_complementar
-        else:
-            palavras_chaves = [p.upper() for p in palavras if p.upper() not in ("PARA", "COM", "QUE", "UMA", "NUM", "SOBRE", "EM", "DO", "DA", "NO", "NA")]
-            l1 = palavras_chaves[0] if palavras_chaves else "QUEDA"
-            l2 = palavras_chaves[1] if len(palavras_chaves) > 1 else "BILIONÁRIA"
-            texto_banner = f"{l1} {l2}"
+        palavras_chaves = [p.upper() for p in palavras if p.upper() not in ("PARA", "COM", "QUE", "UMA", "NUM", "SOBRE", "EM", "DO", "DA", "NO", "NA")]
+        l1 = palavras_chaves[0] if palavras_chaves else "QUEDA"
+        l2 = palavras_chaves[1] if len(palavras_chaves) > 1 else "BILIONÁRIA"
+        texto_banner = f"{l1} {l2}"
         subtitulo = "ESTUDO DE CASO EXECUTIVO" if is_doc else "MENTALIDADE BILIONÁRIA"
         badge_txt = "💼 BASTIDOR EXECUTIVO" if is_doc else "♟️ ESTRATÉGIA DE PODER"
-        nome_canal_badge = "FERGIL"
 
     else:
         # Moda Alana Cruz
         prompt_visual = (
             f"Luxury fashion editorial YouTube Shorts thumbnail (9:16 vertical), ultra-chic 8k photorealistic. "
             f"Elegant young woman modeling trendy outfit: {protagonista}, walking in luxury penthouse / high-end boutique setting. "
-            f"Golden hour soft glamorous lighting, magazine cover aesthetic (Vogue style), vibrant colors, fabric textures."
+            f"Golden hour soft glamorous lighting, magazine cover aesthetic (Vogue style), vibrant colors, fabric textures, NO text, NO letters, NO words."
         )
-        texto_banner = texto_complementar if texto_complementar and len(texto_complementar) <= 24 else "PERFEITO! ✨"
+        texto_banner = "PERFEITO! ✨"
         subtitulo = "LOOK DE LUXO BARATO"
         badge_txt = "✨ ACHADINHO DE LUXO"
-        nome_canal_badge = "ALANA CRUZ"
 
     return {
         "prompt": prompt_visual,
