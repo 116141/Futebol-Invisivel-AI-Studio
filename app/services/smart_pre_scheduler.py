@@ -348,9 +348,200 @@ def obter_videos_unlisted_reais_canal(canal: str = "futebol", limite: int = 50) 
         logger.warning(f"Erro ao buscar vídeos unlisted reais no YouTube para {canal}: {e}")
         return []
 
+def garantir_cobertura_continua_sem_buracos(canal: str = "futebol", max_reagendamentos: int = 15) -> List[Dict]:
+    """
+    REGRA MESTRA ANTI-VÁCUO (Diretriz do Usuário):
+    Verifica se o dia de hoje (ou os próximos dias) possui horários de pico vagos
+    enquanto existem vídeos prontos já agendados mais adiante no calendário.
+    Se detectar buracos, re-agenda e adianta os vídeos futuros para preencher
+    primeiro o dia de HOJE e depois os dias imediatamente seguintes,
+    tomando SEMPRE como referência a data e hora atual de Cabo Verde (UTC-1).
+    NUNCA deixa o canal passar um dia sem vídeos se houver conteúdo no banco/grade!
+    """
+    init_tabela_agendamentos()
+    tz_cv = timezone(timedelta(hours=-1))
+    agora_cv = datetime.now(tz_cv)
+    hoje_str = agora_cv.strftime("%Y-%m-%d")
+    
+    try:
+        yt = youtube_uploader.get_authenticated_service(canal)
+        ch_resp = yt.channels().list(part="contentDetails", mine=True).execute()
+        if not ch_resp.get("items"):
+            return []
+        uploads_id = ch_resp["items"][0]["contentDetails"]["relatedPlaylists"]["uploads"]
+        res = yt.playlistItems().list(part="snippet,status", playlistId=uploads_id, maxResults=50).execute()
+        vid_ids = [it["snippet"]["resourceId"]["videoId"] for it in res.get("items", [])]
+        if not vid_ids:
+            return []
+            
+        v_det = yt.videos().list(part="snippet,status", id=",".join(vid_ids[:50])).execute()
+    except Exception as e:
+        logger.warning(f"[{canal.upper()}] Erro ao consultar vídeos para verificação de buracos: {e}")
+        return []
+        
+    todos_videos = []
+    import dateutil.parser
+    for v in v_det.get("items", []):
+        st = v.get("status", {})
+        pub_at = st.get("publishAt")
+        priv = st.get("privacyStatus")
+        tit = v.get("snippet", {}).get("title", "")
+        desc = v.get("snippet", {}).get("description", "")
+        is_short = "#shorts" in tit.lower() or "#shorts" in desc.lower()
+        tipo = "short" if is_short else "doc"
+        vid_id = v["id"]
+        
+        if pub_at:
+            dt_utc = dateutil.parser.isoparse(pub_at)
+            dt_cv = dt_utc.astimezone(tz_cv)
+            if dt_cv > agora_cv:
+                todos_videos.append({
+                    "id": vid_id,
+                    "titulo": tit,
+                    "tipo": tipo,
+                    "dt_cv": dt_cv,
+                    "agendado_original": True,
+                    "pub_at": pub_at
+                })
+        elif priv == "unlisted":
+            todos_videos.append({
+                "id": vid_id,
+                "titulo": tit,
+                "tipo": tipo,
+                "dt_cv": agora_cv + timedelta(days=999),
+                "agendado_original": False,
+                "pub_at": None
+            })
+            
+    if not todos_videos:
+        return []
+        
+    # Ordena vídeos por data original agendada
+    todos_videos.sort(key=lambda x: x["dt_cv"])
+    
+    # Separa os pools por formato
+    shorts_pool = [v for v in todos_videos if v["tipo"] == "short"]
+    docs_pool = [v for v in todos_videos if v["tipo"] == "doc"]
+    
+    # 1. Gera a sequência cronológica de slots a partir de agora_cv (com margem de 15 min)
+    slots_ideais = []
+    dia_offset = 0
+    while len(slots_ideais) < (len(todos_videos) + 10) and dia_offset < 30:
+        data_base = (agora_cv + timedelta(days=dia_offset)).date()
+        for s in HORARIOS_PICOS_CABO_VERDE:
+            slot_dt = datetime(data_base.year, data_base.month, data_base.day, s["hora"], s["minuto"], tzinfo=tz_cv)
+            if slot_dt > (agora_cv + timedelta(minutes=15)):
+                horario_utc = slot_dt.astimezone(timezone.utc)
+                horario_utc_iso = horario_utc.strftime("%Y-%m-%dT%H:%M:00.000Z")
+                slots_ideais.append({
+                    "dt": slot_dt,
+                    "data_cv": data_base.strftime("%Y-%m-%d"),
+                    "hora_cv": f"{s['hora']:02d}:{s['minuto']:02d}",
+                    "slot_id": f"{s['hora']:02d}_{s['minuto']:02d}",
+                    "tipo": s["tipo_preferido"],
+                    "rotulo": s["rotulo"],
+                    "horario_utc_iso": horario_utc_iso
+                })
+        dia_offset += 1
+        
+    # 2. Verifica se há necessidade de re-agendamento (Gap Detection)
+    primeiro_video_dt = min((v["dt_cv"] for v in todos_videos if v["agendado_original"]), default=None)
+    
+    slots_vagos_iniciais = []
+    if primeiro_video_dt:
+        for s in slots_ideais:
+            if s["dt"] < primeiro_video_dt:
+                slots_vagos_iniciais.append(s)
+                
+    if not slots_vagos_iniciais:
+        logger.info(f"[{canal.upper()}] Grade já está contínua e sem buracos a partir de hoje.")
+        return []
+        
+    logger.warning(f"[{canal.upper()}] 🚨 VÁCUO DETECTADO! Existem {len(slots_vagos_iniciais)} slots vazios antes do primeiro vídeo agendado ({primeiro_video_dt.strftime('%d/%m/%Y %H:%M')}). Re-agendando com base no momento atual...")
+    
+    # 3. Executa a Compactação e Re-agendamento dos slots
+    reagendados = []
+    
+    for slot in slots_ideais:
+        if not shorts_pool and not docs_pool:
+            break
+            
+        escolhido = None
+        if slot["tipo"] == "short" and shorts_pool:
+            escolhido = shorts_pool.pop(0)
+        elif slot["tipo"] == "doc" and docs_pool:
+            escolhido = docs_pool.pop(0)
+        elif shorts_pool:
+            escolhido = shorts_pool.pop(0)
+        elif docs_pool:
+            escolhido = docs_pool.pop(0)
+            
+        if not escolhido:
+            continue
+            
+        orig_str = escolhido["dt_cv"].strftime("%Y-%m-%d %H:%M") if escolhido["agendado_original"] else "UNLISTED"
+        novo_str = slot["dt"].strftime("%Y-%m-%d %H:%M")
+        
+        # Só executa a chamada de API se realmente mudou de horário/data
+        if orig_str != novo_str:
+            if len(reagendados) >= max_reagendamentos:
+                logger.info(f"[{canal.upper()}] Atingido o limite de segurança de {max_reagendamentos} re-agendamentos nesta rodada para proteger a cota.")
+                break
+                
+            logger.info(f"⚡ [RE-AGENDAMENTO] Adiantando '{escolhido['titulo'][:40]}' de {orig_str} para {novo_str} ({slot['tipo'].upper()})")
+            
+            try:
+                sucesso = agendar_video_no_youtube(escolhido["id"], slot["horario_utc_iso"], canal=canal)
+            except QuotaExceededException:
+                logger.warning(f"[{canal.upper()}] Cota diária atingida ao re-agendar. Parando rodada.")
+                break
+                
+            if sucesso:
+                registrar_agendamento_db(
+                    video_id=escolhido["id"],
+                    canal=canal,
+                    tipo=slot["tipo"],
+                    titulo=escolhido["titulo"],
+                    slot_id=slot["slot_id"],
+                    data_cv=slot["data_cv"],
+                    horario_cv=slot["hora_cv"],
+                    horario_utc_iso=slot["horario_utc_iso"]
+                )
+                reagendados.append({
+                    "video_id": escolhido["id"],
+                    "titulo": escolhido["titulo"],
+                    "tipo": slot["tipo"],
+                    "orig": orig_str,
+                    "novo": novo_str,
+                    "data_cv": slot["data_cv"],
+                    "hora_cv": slot["hora_cv"],
+                    "rotulo": slot["rotulo"]
+                })
+                
+    if reagendados:
+        try:
+            detalhes_txt = "\n".join([f"• `{r['novo']}` ({r['tipo'].upper()}): _{r['titulo'][:38]}_ (era {r['orig']})" for r in reagendados[:8]])
+            if len(reagendados) > 8:
+                detalhes_txt += f"\n_... e mais {len(reagendados) - 8} vídeos adiantados!_"
+                
+            msg = (
+                "⚡ *GRADE REORGANIZADA COM SUCESSO (ANTI-VÁCUO)*\n\n"
+                f"📺 *Canal:* `{canal.upper()}`\n"
+                f"🎯 *Motivo:* Detecção de horários vagos hoje/amanhã enquanto havia vídeos agendados no futuro.\n"
+                f"📦 *Vídeos Adiantados para Hoje e Próximos Dias:* {len(reagendados)}\n\n"
+                f"{detalhes_txt}\n\n"
+                "🛡️ _Agora o canal tem publicações garantidas para HOJE e para todos os próximos dias ininterruptamente!_"
+            )
+            telegram_reporter.enviar_mensagem_telegram(msg)
+        except Exception:
+            pass
+            
+    return reagendados
+
 def executar_fluxo_auto_agendamento(canal: str = "futebol") -> List[Dict]:
     """
     Fluxo Completo Inteligente:
+    0. Anti-Vácuo: Detecta e preenche buracos em aberto hoje/amanhã adiantando vídeos futuros.
     1. Busca todos os vídeos unlisted pendentes:
        - Primeiro do banco de dados (vídeos gerados pelo estúdio).
        - Complementa com vídeos 'unlisted' reais do YouTube que estejam sem agendamento.
@@ -359,6 +550,14 @@ def executar_fluxo_auto_agendamento(canal: str = "futebol") -> List[Dict]:
     4. Registra no banco de dados e notifica no Telegram.
     """
     init_tabela_agendamentos()
+    
+    # 0. REGRA MESTRA ANTI-VÁCUO: Se houver horários de pico vagos hoje/amanhã e vídeos agendados no futuro, re-agenda e adianta imediatamente!
+    try:
+        reagendados = garantir_cobertura_continua_sem_buracos(canal, max_reagendamentos=15)
+        if reagendados:
+            logger.success(f"[{canal.upper()}] Anti-Vácuo: {len(reagendados)} vídeos foram adiantados/reagendados para cobrir hoje e os próximos picos!")
+    except Exception as e_vac:
+        logger.warning(f"[{canal.upper()}] Erro ao checar/reorganizar grade contínua: {e_vac}")
     
     conn = sqlite3.connect(DB_PATH)
     cur = conn.cursor()
