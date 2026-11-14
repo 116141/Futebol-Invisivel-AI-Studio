@@ -143,10 +143,13 @@ def _compor_capa_vitrine_afiliado(canvas: Image.Image, dados_capa: Dict[str, str
         # Produto: aplica recorte inteligente para remover paredes e cenários
         prod_recortado = recortar_produto_inteligente(canvas)
         
-        cw = int(w * 0.74)
+        # ZONA CENTRAL SAGRADA DO PRODUTO: largura máxima de ~46% para NUNCA encostar no Selo nem no CTA
+        max_cw = int(w * 0.46)
+        max_ch = int(h * 0.48)
+        cw = max_cw
         ch = int(prod_recortado.height * (cw / prod_recortado.width))
-        if ch > int(h * 0.58):
-            ch = int(h * 0.58)
+        if ch > max_ch:
+            ch = max_ch
             cw = int(prod_recortado.width * (ch / prod_recortado.height))
         prod_resized = prod_recortado.resize((cw, ch), Image.LANCZOS).convert("RGBA")
         
@@ -155,15 +158,15 @@ def _compor_capa_vitrine_afiliado(canvas: Image.Image, dados_capa: Dict[str, str
         d_sh = ImageDraw.Draw(shadow_layer)
         sh_cx = w // 2
         sh_cy = 2125
-        sh_rx = int(cw * 0.35)
-        sh_ry = 42
-        d_sh.ellipse([sh_cx - sh_rx, sh_cy - sh_ry, sh_cx + sh_rx, sh_cy + sh_ry], fill=(15, 10, 5, 140))
-        shadow_layer = shadow_layer.filter(ImageFilter.GaussianBlur(16))
+        sh_rx = int(cw * 0.40)
+        sh_ry = 38
+        d_sh.ellipse([sh_cx - sh_rx, sh_cy - sh_ry, sh_cx + sh_rx, sh_cy + sh_ry], fill=(15, 10, 5, 160))
+        shadow_layer = shadow_layer.filter(ImageFilter.GaussianBlur(18))
         base_canvas.paste(shadow_layer, (0, 0), shadow_layer)
         
-        # Cola o produto
+        # Cola o produto estritamente centralizado
         px = (w - cw) // 2
-        py = 2125 - ch + 40
+        py = 2125 - ch + 35
         base_canvas.paste(prod_resized, (px, py), prod_resized)
         canvas_rgba = base_canvas
     else:
@@ -191,7 +194,7 @@ def _compor_capa_vitrine_afiliado(canvas: Image.Image, dados_capa: Dict[str, str
     y2 = y1 + (bb1[3] - bb1[1]) + int(h * 0.038)
     desenhar_texto_3d_luxo(ImageDraw.Draw(canvas_rgba), (x2, y2), linha2, f_l2, cor_face=(255, 255, 255), cor_extrusao=(180, 15, 15), profundidade=18)
     
-    # 3. Selo 'OFERTA LIMITADA!' 3D Puro com Transparência Alfa
+    # 3. Selo 'OFERTA LIMITADA!' 3D Puro com Transparência Alfa (Margem Esquerda Segura)
     selo_path = "resource/templates/selo_vest_impecavel.png"
     if not os.path.exists(selo_path):
         selo_path = "resource/templates/selo_sticker.png"
@@ -199,12 +202,12 @@ def _compor_capa_vitrine_afiliado(canvas: Image.Image, dados_capa: Dict[str, str
         selo = Image.open(selo_path).convert("RGBA")
         bb_s = selo.getbbox()
         if bb_s: selo = selo.crop(bb_s)
-        sw = int(w * 0.28)
+        sw = int(w * 0.22)
         sh_sz = int(selo.height * (sw / selo.width))
         selo = selo.resize((sw, sh_sz), Image.LANCZOS)
-        canvas_rgba.paste(selo, (int(w * 0.025), int(h * 0.35)), selo)
+        canvas_rgba.paste(selo, (25, int(h * 0.40)), selo)
         
-    # 4. CTA Seta 'GARANTA O SEU!' 3D Puro com Transparência Alfa
+    # 4. CTA Seta 'GARANTA O SEU!' 3D Puro com Transparência Alfa (Margem Direita Segura)
     cta_path = "resource/templates/cta_vest_impecavel.png"
     if not os.path.exists(cta_path):
         cta_path = "resource/templates/cta_sticker.png"
@@ -212,10 +215,10 @@ def _compor_capa_vitrine_afiliado(canvas: Image.Image, dados_capa: Dict[str, str
         cta = Image.open(cta_path).convert("RGBA")
         bb_c = cta.getbbox()
         if bb_c: cta = cta.crop(bb_c)
-        cw = int(w * 0.31)
+        cw = int(w * 0.23)
         ch_sz = int(cta.height * (cw / cta.width))
         cta = cta.resize((cw, ch_sz), Image.LANCZOS)
-        canvas_rgba.paste(cta, (w - cw - int(w * 0.02), int(h * 0.31)), cta)
+        canvas_rgba.paste(cta, (w - cw - 25, int(h * 0.37)), cta)
         
     # 5. Preço Chamativo em 3D Ouro
     preco = dados_capa.get("preco", "Apenas R$ 60,36!")
