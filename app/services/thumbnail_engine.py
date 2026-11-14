@@ -67,76 +67,133 @@ def _criar_banner_inclinado(texto: str, largura_canvas: int, angulo: float = -3.
     return ban_img.rotate(angulo, resample=Image.BICUBIC, expand=True)
 
 
+def desenhar_texto_3d_luxo(draw, pos, texto, font, cor_face, cor_extrusao=(170, 15, 15), cor_borda=(0, 0, 0), profundidade=14):
+    """Renderiza tipografia volumétrica 3D com chanfro, extrusão e sombra de alto impacto."""
+    x, y = pos
+    # 1. Sombra suave profunda
+    for d in range(profundidade + 4, profundidade + 20, 2):
+        draw.text((x + d, y + d), texto, font=font, fill=(0, 0, 0, 80))
+    # 2. Extrusão 3D vermelha em camadas diagonais
+    for step in range(profundidade, 0, -1):
+        for dx in range(-3, 4):
+            draw.text((x + dx, y + step), texto, font=font, fill=cor_extrusao)
+    # 3. Contorno externo preto espesso
+    for dx in range(-7, 8):
+        for dy in range(-7, 8):
+            if dx*dx + dy*dy <= 49:
+                draw.text((x + dx, y + dy), texto, font=font, fill=cor_borda)
+    # 4. Contorno interno vermelho
+    for dx in range(-4, 5):
+        for dy in range(-4, 5):
+            if dx*dx + dy*dy <= 16:
+                draw.text((x + dx, y + dy), texto, font=font, fill=cor_extrusao)
+    # 5. Face frontal brilhante
+    draw.text((x, y), texto, font=font, fill=cor_face)
+
+
 def _compor_capa_vitrine_afiliado(canvas: Image.Image, dados_capa: Dict[str, str]) -> Image.Image:
-    """Compõe a vitrine de alta conversão idêntica ao benchmark de bolsas/moda."""
-    w, h = canvas.size
+    """Compõe a vitrine de alta conversão idêntica ao benchmark de luxo (Palco Dourado + 3D Ouro)."""
+    # 1. Se existir o master stage limpo de 1536x2752, utiliza como base oficial
+    master_tpl = "resource/templates/master_stage_perfect.png"
+    if os.path.exists(master_tpl):
+        base_canvas = Image.open(master_tpl).convert("RGBA")
+        w, h = base_canvas.size
+        # Suavizar junção de palco
+        seam = base_canvas.crop((0, 1980, w, 2060)).filter(ImageFilter.GaussianBlur(10))
+        base_canvas.paste(seam, (0, 1980))
+        
+        # Produto recortado ou do canvas atual sobre o palco
+        # Se o canvas de entrada tiver produto isolado
+        if canvas.size != (w, h):
+            # Projeta o conteúdo no centro do palco dourado
+            cw = int(w * 0.76)
+            ch = int(canvas.height * (cw / canvas.width))
+            if ch > int(h * 0.58):
+                ch = int(h * 0.58)
+                cw = int(canvas.width * (ch / canvas.height))
+            prod_resized = canvas.resize((cw, ch), Image.LANCZOS).convert("RGBA")
+            
+            # Sombra de contato difusa no palco
+            shadow_layer = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+            d_sh = ImageDraw.Draw(shadow_layer)
+            sh_cx = w // 2
+            sh_cy = 2125
+            sh_rx = int(cw * 0.36)
+            sh_ry = 42
+            d_sh.ellipse([sh_cx - sh_rx, sh_cy - sh_ry, sh_cx + sh_rx, sh_cy + sh_ry], fill=(15, 10, 5, 140))
+            shadow_layer = shadow_layer.filter(ImageFilter.GaussianBlur(16))
+            base_canvas.paste(shadow_layer, (0, 0), shadow_layer)
+            
+            # Cola o produto
+            px = (w - cw) // 2
+            py = 2125 - ch + 40
+            base_canvas.paste(prod_resized, (px, py), prod_resized)
+        canvas_rgba = base_canvas
+    else:
+        w, h = canvas.size
+        canvas_rgba = canvas.convert("RGBA")
     
-    # 1. Overlay superior escuro para leitura perfeita do título
-    ov = Image.new("RGBA", (w, h), (0, 0, 0, 0))
-    d_ov = ImageDraw.Draw(ov)
-    for y in range(int(h * 0.22)):
-        alpha = int(170 * (1 - y / (h * 0.22)))
-        d_ov.line([(0, y), (w, y)], fill=(0, 0, 0, alpha))
-    canvas_rgba = Image.alpha_composite(canvas.convert("RGBA"), ov)
+    # 2. Tipografia 3D Volumétrica no Topo (Safe Zone Superior)
+    linha1 = dados_capa.get("linha1", "ACHADINHO DE LUXO").upper()
+    f_l1 = _obter_fonte(int(h * 0.053))
+    bb1 = f_l1.getbbox(linha1)
+    if (bb1[2] - bb1[0]) > w * 0.88:
+        f_l1 = _obter_fonte(int(h * 0.042))
+        bb1 = f_l1.getbbox(linha1)
+    x1 = (w - (bb1[2] - bb1[0])) // 2
+    y1 = int(h * 0.051)
+    desenhar_texto_3d_luxo(ImageDraw.Draw(canvas_rgba), (x1, y1), linha1, f_l1, cor_face=(255, 225, 10), cor_extrusao=(170, 20, 20), profundidade=16)
     
-    # 2. Linha 1: Texto Superior Branco em Caixa Alta
-    linha1 = dados_capa.get("linha1", "ACHADINHO DE LUXO")
-    f_l1 = _obter_fonte(int(h * 0.038))
-    bb = f_l1.getbbox(linha1)
-    if (bb[2] - bb[0]) > w * 0.85:
-        f_l1 = _obter_fonte(int(h * 0.030))
-        bb = f_l1.getbbox(linha1)
-    x1 = (w - (bb[2] - bb[0])) // 2
-    y1 = int(h * 0.030)
-    _desenhar_texto_com_sombra(ImageDraw.Draw(canvas_rgba), (x1, y1), linha1, f_l1, (255, 255, 255), stroke_w=6)
+    linha2 = dados_capa.get("linha2_banner", "PERFEITO!").upper()
+    f_l2 = _obter_fonte(int(h * 0.067))
+    bb2 = f_l2.getbbox(linha2)
+    if (bb2[2] - bb2[0]) > w * 0.88:
+        f_l2 = _obter_fonte(int(h * 0.052))
+        bb2 = f_l2.getbbox(linha2)
+    x2 = (w - (bb2[2] - bb2[0])) // 2
+    y2 = y1 + (bb1[3] - bb1[1]) + int(h * 0.038)
+    desenhar_texto_3d_luxo(ImageDraw.Draw(canvas_rgba), (x2, y2), linha2, f_l2, cor_face=(255, 255, 255), cor_extrusao=(180, 15, 15), profundidade=18)
     
-    # 3. Linha 2: Faixa Inclinada Vermelha com Texto Amarelo
-    linha2 = dados_capa.get("linha2_banner", "PERFEITO!")
-    ban_rot = _criar_banner_inclinado(linha2, w, angulo=-3.5)
-    canvas_rgba.paste(ban_rot, ((w - ban_rot.width) // 2, int(h * 0.082)), ban_rot)
-    
-    # 4. Selo Circular 'OFERTA LIMITADA!' (Topo Esquerdo)
-    selo_path = "resource/templates/selo_sticker.png"
+    # 3. Selo 'OFERTA LIMITADA!' 3D Puro com Transparência Alfa
+    selo_path = "resource/templates/selo_vest_impecavel.png"
+    if not os.path.exists(selo_path):
+        selo_path = "resource/templates/selo_sticker.png"
     if os.path.exists(selo_path):
         selo = Image.open(selo_path).convert("RGBA")
-        selo_sz = int(w * 0.28)
-        selo = selo.resize((selo_sz, selo_sz), Image.LANCZOS)
-        canvas_rgba.paste(selo, (int(w * 0.05), int(h * 0.18)), selo)
+        bb_s = selo.getbbox()
+        if bb_s: selo = selo.crop(bb_s)
+        sw = int(w * 0.28)
+        sh_sz = int(selo.height * (sw / selo.width))
+        selo = selo.resize((sw, sh_sz), Image.LANCZOS)
+        canvas_rgba.paste(selo, (int(w * 0.025), int(h * 0.35)), selo)
         
-    # 5. Preço em Destaque no Topo Direito
-    preco = dados_capa.get("preco", "Apenas R$ 149,90!")
-    f_pr = _obter_fonte(int(h * 0.034))
-    b_pr = f_pr.getbbox(preco)
-    _desenhar_texto_com_sombra(ImageDraw.Draw(canvas_rgba), (w - (b_pr[2] - b_pr[0]) - int(w * 0.06), int(h * 0.21)), preco, f_pr, (255, 235, 10), stroke_w=5)
-    
-    # 6. Callout 'GARANTA O SEU!' na Direita Inferior
-    cta_path = "resource/templates/cta_sticker.png"
+    # 4. CTA Seta 'GARANTA O SEU!' 3D Puro com Transparência Alfa
+    cta_path = "resource/templates/cta_vest_impecavel.png"
+    if not os.path.exists(cta_path):
+        cta_path = "resource/templates/cta_sticker.png"
     if os.path.exists(cta_path):
         cta = Image.open(cta_path).convert("RGBA")
-        cta_w = int(w * 0.38)
-        cta_h = int(cta.height * (cta_w / cta.width))
-        cta = cta.resize((cta_w, cta_h), Image.LANCZOS)
-        canvas_rgba.paste(cta, (w - cta_w - int(w * 0.04), int(h * 0.69)), cta)
-    else:
-        f_cta = _obter_fonte(int(h * 0.028))
-        txt_cta = dados_capa.get("texto_cta", "GARANTA O SEU!")
-        b_cta = f_cta.getbbox(txt_cta)
-        cw = (b_cta[2] - b_cta[0]) + int(w * 0.08)
-        ch = (b_cta[3] - b_cta[1]) + int(h * 0.018)
-        cta_img = Image.new("RGBA", (cw + 30, ch + 30), (0, 0, 0, 0))
-        d_c = ImageDraw.Draw(cta_img)
-        d_c.rectangle([12, 10, 12 + cw, 10 + ch], fill=(0, 0, 0, 180))
-        d_c.rectangle([8, 6, 8 + cw, 6 + ch], fill=(255, 225, 10, 255), outline=(0, 0, 0, 255), width=4)
-        _desenhar_texto_com_sombra(d_c, (8 + int(w * 0.04), 6 + int(h * 0.005)), txt_cta, f_cta, (0, 0, 0), stroke_w=0, offset=(0,0))
-        cta_rot = cta_img.rotate(4, resample=Image.BICUBIC, expand=True)
-        canvas_rgba.paste(cta_rot, (w - cta_rot.width - int(w * 0.04), int(h * 0.73)), cta_rot)
+        bb_c = cta.getbbox()
+        if bb_c: cta = cta.crop(bb_c)
+        cw = int(w * 0.31)
+        ch_sz = int(cta.height * (cw / cta.width))
+        cta = cta.resize((cw, ch_sz), Image.LANCZOS)
+        canvas_rgba.paste(cta, (w - cw - int(w * 0.02), int(h * 0.31)), cta)
+        
+    # 5. Preço Chamativo em 3D Ouro
+    preco = dados_capa.get("preco", "Apenas R$ 60,36!")
+    f_pr = _obter_fonte(int(h * 0.030))
+    bb_pr = f_pr.getbbox(preco)
+    x_pr = w - (bb_pr[2] - bb_pr[0]) - int(w * 0.04)
+    y_pr = int(h * 0.235)
+    desenhar_texto_3d_luxo(ImageDraw.Draw(canvas_rgba), (x_pr, y_pr), preco, f_pr, cor_face=(255, 235, 10), cor_extrusao=(160, 20, 20), profundidade=10)
     
-    # 7. Rodapé de Conversão
+    # 6. Rodapé Oficial de Conversão
     footer_path = "resource/templates/boutique_full_footer.png"
     if os.path.exists(footer_path):
         ft = Image.open(footer_path).convert("RGBA")
-        ft_h = int(h * 0.17)
         ft_w = w
+        ft_h = int(ft.height * (ft_w / ft.width))
         ft = ft.resize((ft_w, ft_h), Image.LANCZOS)
         canvas_rgba.paste(ft, (0, h - ft_h), ft)
         
