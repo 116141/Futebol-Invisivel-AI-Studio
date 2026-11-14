@@ -91,6 +91,44 @@ def desenhar_texto_3d_luxo(draw, pos, texto, font, cor_face, cor_extrusao=(170, 
     draw.text((x, y), texto, font=font, fill=cor_face)
 
 
+def recortar_produto_inteligente(img_input) -> Image.Image:
+    """Recorta produto/modelo eliminando paredes e cenários via OpenCV GrabCut."""
+    try:
+        import cv2
+        import numpy as np
+        
+        if isinstance(img_input, str):
+            cv_img = cv2.imread(img_input)
+        else:
+            # Converte PIL Image para numpy array BGR
+            pil_rgb = img_input.convert("RGB")
+            cv_img = cv2.cvtColor(np.array(pil_rgb), cv2.COLOR_RGB2BGR)
+            
+        h, w = cv_img.shape[:2]
+        mask = np.zeros((h, w), np.uint8)
+        bgdModel = np.zeros((1, 65), np.float64)
+        fgdModel = np.zeros((1, 65), np.float64)
+        
+        rect = (15, 10, w - 30, h - 20)
+        cv2.grabCut(cv_img, mask, rect, bgdModel, fgdModel, 5, cv2.GC_INIT_WITH_RECT)
+        mask2 = np.where((mask == 2) | (mask == 0), 0, 1).astype('uint8')
+        
+        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
+        mask_closed = cv2.morphologyEx(mask2, cv2.MORPH_CLOSE, kernel)
+        mask_smooth = cv2.GaussianBlur(mask_closed * 255, (7, 7), 0)
+        
+        b, g, r = cv2.split(cv_img)
+        rgba = cv2.merge([r, g, b, mask_smooth])
+        res = Image.fromarray(rgba)
+        bbox = res.getbbox()
+        if bbox:
+            res = res.crop(bbox)
+        return res
+    except Exception as e:
+        logger.debug(f"Aviso no recorte inteligente: {e}")
+        return img_input if isinstance(img_input, Image.Image) else Image.open(img_input)
+
+
 def _compor_capa_vitrine_afiliado(canvas: Image.Image, dados_capa: Dict[str, str]) -> Image.Image:
     """Compõe a vitrine de alta conversão idêntica ao benchmark de luxo (Palco Dourado + 3D Ouro)."""
     # 1. Se existir o master stage limpo de 1536x2752, utiliza como base oficial
@@ -102,32 +140,31 @@ def _compor_capa_vitrine_afiliado(canvas: Image.Image, dados_capa: Dict[str, str
         seam = base_canvas.crop((0, 1980, w, 2060)).filter(ImageFilter.GaussianBlur(10))
         base_canvas.paste(seam, (0, 1980))
         
-        # Produto recortado ou do canvas atual sobre o palco
-        # Se o canvas de entrada tiver produto isolado
-        if canvas.size != (w, h):
-            # Projeta o conteúdo no centro do palco dourado
-            cw = int(w * 0.76)
-            ch = int(canvas.height * (cw / canvas.width))
-            if ch > int(h * 0.58):
-                ch = int(h * 0.58)
-                cw = int(canvas.width * (ch / canvas.height))
-            prod_resized = canvas.resize((cw, ch), Image.LANCZOS).convert("RGBA")
-            
-            # Sombra de contato difusa no palco
-            shadow_layer = Image.new("RGBA", (w, h), (0, 0, 0, 0))
-            d_sh = ImageDraw.Draw(shadow_layer)
-            sh_cx = w // 2
-            sh_cy = 2125
-            sh_rx = int(cw * 0.36)
-            sh_ry = 42
-            d_sh.ellipse([sh_cx - sh_rx, sh_cy - sh_ry, sh_cx + sh_rx, sh_cy + sh_ry], fill=(15, 10, 5, 140))
-            shadow_layer = shadow_layer.filter(ImageFilter.GaussianBlur(16))
-            base_canvas.paste(shadow_layer, (0, 0), shadow_layer)
-            
-            # Cola o produto
-            px = (w - cw) // 2
-            py = 2125 - ch + 40
-            base_canvas.paste(prod_resized, (px, py), prod_resized)
+        # Produto: aplica recorte inteligente para remover paredes e cenários
+        prod_recortado = recortar_produto_inteligente(canvas)
+        
+        cw = int(w * 0.74)
+        ch = int(prod_recortado.height * (cw / prod_recortado.width))
+        if ch > int(h * 0.58):
+            ch = int(h * 0.58)
+            cw = int(prod_recortado.width * (ch / prod_recortado.height))
+        prod_resized = prod_recortado.resize((cw, ch), Image.LANCZOS).convert("RGBA")
+        
+        # Sombra de contato difusa no palco
+        shadow_layer = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+        d_sh = ImageDraw.Draw(shadow_layer)
+        sh_cx = w // 2
+        sh_cy = 2125
+        sh_rx = int(cw * 0.35)
+        sh_ry = 42
+        d_sh.ellipse([sh_cx - sh_rx, sh_cy - sh_ry, sh_cx + sh_rx, sh_cy + sh_ry], fill=(15, 10, 5, 140))
+        shadow_layer = shadow_layer.filter(ImageFilter.GaussianBlur(16))
+        base_canvas.paste(shadow_layer, (0, 0), shadow_layer)
+        
+        # Cola o produto
+        px = (w - cw) // 2
+        py = 2125 - ch + 40
+        base_canvas.paste(prod_resized, (px, py), prod_resized)
         canvas_rgba = base_canvas
     else:
         w, h = canvas.size
