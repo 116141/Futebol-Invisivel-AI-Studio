@@ -1,6 +1,8 @@
 import os
 import re
 import json
+import random
+import subprocess
 import urllib.request
 import urllib.parse
 from typing import Optional, Dict
@@ -36,85 +38,177 @@ def _desenhar_texto_com_borda(draw, pos, texto, font, cor_texto, cor_borda=(0, 0
                 draw.text((x + dx, y + dy), texto, font=font, fill=cor_borda)
     draw.text(pos, texto, font=font, fill=cor_texto)
 
+
+def _extrair_frame_video(video_path: str) -> Optional[Image.Image]:
+    """Extrai um frame nítido do vídeo em alta resolução usando FFmpeg."""
+    if not video_path or not os.path.exists(video_path):
+        return None
+    try:
+        temp_thumb = os.path.join(THUMBNAIL_DIR, f"temp_frame_{os.getpid()}_{random.randint(1000,9999)}.jpg")
+        cmd = [
+            "ffmpeg", "-y", "-ss", "00:00:04", "-i", video_path,
+            "-vframes", "1", "-q:v", "2", temp_thumb
+        ]
+        res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=12)
+        if os.path.exists(temp_thumb) and os.path.getsize(temp_thumb) > 2000:
+            img = Image.open(temp_thumb).convert("RGB")
+            try:
+                os.remove(temp_thumb)
+            except Exception:
+                pass
+            logger.info(f"📸 Frame real do vídeo extraído com sucesso: {video_path}")
+            return img
+    except Exception as e:
+        logger.debug(f"Aviso ao extrair frame de vídeo: {e}")
+    return None
+
+
+def _gerar_fundo_pollinations(prompt: str, largura: int, altura: int) -> Optional[Image.Image]:
+    """Gera arte de fundo cinematográfica 100% gratuita via Pollinations.ai (FLUX/Turbo sem chave de API)."""
+    try:
+        import io
+        clean_p = re.sub(r'[^a-zA-Z0-9\s,]', ' ', prompt)[:200].strip()
+        encoded = urllib.parse.quote(clean_p)
+        url = f"https://image.pollinations.ai/prompt/{encoded}?width={largura}&height={altura}&model=turbo&nologo=true&seed={random.randint(1, 999999)}"
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+        with urllib.request.urlopen(req, timeout=14) as resp:
+            data = resp.read()
+            if len(data) > 5000:
+                img = Image.open(io.BytesIO(data)).convert("RGB")
+                logger.info("🎨 Arte cinematográfica de alta resolução gerada via Pollinations.ai ($0.00)!")
+                return img
+    except Exception as e:
+        logger.debug(f"Aviso ao consultar Pollinations.ai: {e}")
+    return None
+
+
 def gerar_prompt_capa_ia(titulo: str, canal: str = "futebol", is_doc: bool = True) -> Dict[str, str]:
     """
     Formula o prompt temático hiper-realista e as chamadas de texto estratégicas
-    para o gerador de imagem, evitando qualquer repetição.
+    para a miniatura, integrando os conceitos de miniatura do dual_ai_editor.
     """
     limpo = re.sub(r'[^a-zA-Z0-9À-ÖØ-öø-ÿ\s]', ' ', titulo)
     palavras = [p for p in limpo.split() if len(p) > 2]
     protagonista = " ".join(palavras[:2]) if len(palavras) >= 2 else titulo[:25]
     
     aspect_ratio = "16:9" if is_doc else "9:16"
-    
+    texto_complementar = ""
+    try:
+        from app.services import dual_ai_editor
+        sugestoes = dual_ai_editor.gerar_sugestao_thumbnail_complementar(titulo, canal=canal)
+        # Extrai texto de Opção 1 ou Opção 2
+        m_txt = re.findall(r'Texto:\s*([^\n\r]+)', sugestoes, re.IGNORECASE)
+        if m_txt:
+            texto_complementar = m_txt[0].strip().strip('"').strip("'").upper()
+    except Exception:
+        pass
+
     if canal == "futebol":
         prompt_visual = (
-            f"Professional YouTube thumbnail for dramatic sports documentary ({aspect_ratio}), ultra-realistic 8k. "
-            f"Center focus on intense emotional face expression of {protagonista}, cinematic split lighting (cold blue and intense red/golden highlights). "
-            f"Background features locker room tension, confidential secret dossier with 'TOP SECRET / CONFIDENCIAL' stamps, contract papers and tactical board with red strings. "
-            f"Photorealistic sports photography, high contrast, extreme detail, blockbuster movie poster quality."
+            f"Professional sports photojournalism YouTube thumbnail ({aspect_ratio}), ultra-realistic 8k. "
+            f"Intense emotional portrait of {protagonista}, dramatic stadium floodlights, lens flare, rain drops, atmospheric smoke, "
+            f"confidential dossier stamps and red tactical board lines. Cinematic contrast, extreme detail, blockbuster poster."
         )
-        palavras_chaves = [p.upper() for p in palavras if p.upper() not in ("PARA", "COM", "QUE", "UMA", "NUM", "SOBRE", "EM", "DO", "DA", "NO", "NA")]
-        l1 = palavras_chaves[0] if palavras_chaves else "BOMBA"
-        l2 = palavras_chaves[1] if len(palavras_chaves) > 1 else "REVELADO!"
-        if len(palavras_chaves) > 2 and len(l1) + len(l2) < 14:
-            l2 = f"{l2} {palavras_chaves[2]}"
-        
-        texto_banner = f"{l1} {l2}?!"
+        if texto_complementar and 3 <= len(texto_complementar) <= 24:
+            texto_banner = texto_complementar
+        else:
+            palavras_chaves = [p.upper() for p in palavras if p.upper() not in ("PARA", "COM", "QUE", "UMA", "NUM", "SOBRE", "EM", "DO", "DA", "NO", "NA")]
+            l1 = palavras_chaves[0] if palavras_chaves else "BOMBA"
+            l2 = palavras_chaves[1] if len(palavras_chaves) > 1 else "REVELADO!"
+            texto_banner = f"{l1} {l2}?!"
         subtitulo = "O PLANO SECRETO" if is_doc else "A VERDADE DOS BASTIDORES"
+        badge_txt = "🔴 DOSSIÊ CONFIDENCIAL" if is_doc else "🔥 BASTIDOR EXPLOSIVO"
+        nome_canal_badge = "FUTEBOL INVISÍVEL"
+
+    elif canal == "fergil":
+        prompt_visual = (
+            f"Cinematic executive drama YouTube thumbnail ({aspect_ratio}), ultra-realistic 8k. "
+            f"Moody atmospheric lighting, powerful corporate boardroom, luxury skyscrapers glass reflections, focus on {protagonista}, "
+            f"Wall Street aesthetic, stock charts, subtle gold accents, dark obsidian and deep navy blue tones, high stakes financial power."
+        )
+        if texto_complementar and 3 <= len(texto_complementar) <= 24:
+            texto_banner = texto_complementar
+        else:
+            palavras_chaves = [p.upper() for p in palavras if p.upper() not in ("PARA", "COM", "QUE", "UMA", "NUM", "SOBRE", "EM", "DO", "DA", "NO", "NA")]
+            l1 = palavras_chaves[0] if palavras_chaves else "QUEDA"
+            l2 = palavras_chaves[1] if len(palavras_chaves) > 1 else "BILIONÁRIA"
+            texto_banner = f"{l1} {l2}"
+        subtitulo = "ESTUDO DE CASO EXECUTIVO" if is_doc else "MENTALIDADE BILIONÁRIA"
+        badge_txt = "💼 BASTIDOR EXECUTIVO" if is_doc else "♟️ ESTRATÉGIA DE PODER"
+        nome_canal_badge = "FERGIL"
+
     else:
         # Moda Alana Cruz
         prompt_visual = (
             f"Luxury fashion editorial YouTube Shorts thumbnail (9:16 vertical), ultra-chic 8k photorealistic. "
             f"Elegant young woman modeling trendy outfit: {protagonista}, walking in luxury penthouse / high-end boutique setting. "
-            f"Golden hour soft glamorous lighting, magazine cover aesthetic (Vogue/Harper's Bazaar style), vibrant colors, impeccable fabric textures."
+            f"Golden hour soft glamorous lighting, magazine cover aesthetic (Vogue style), vibrant colors, fabric textures."
         )
-        texto_banner = f"PERFEITO! ✨"
+        texto_banner = texto_complementar if texto_complementar and len(texto_complementar) <= 24 else "PERFEITO! ✨"
         subtitulo = "LOOK DE LUXO BARATO"
+        badge_txt = "✨ ACHADINHO DE LUXO"
+        nome_canal_badge = "ALANA CRUZ"
 
     return {
         "prompt": prompt_visual,
         "texto_banner": texto_banner[:24].upper(),
         "subtitulo": subtitulo[:28].upper(),
+        "badge_txt": badge_txt,
+        "nome_canal_badge": nome_canal_badge,
         "protagonista": protagonista,
         "aspect_ratio": aspect_ratio
     }
+
 
 def gerar_capa_tematica_profissional(
     video_id: str,
     titulo: str,
     canal: str = "futebol",
     is_doc: bool = True,
-    imagem_base_path: Optional[str] = None
+    imagem_base_path: Optional[str] = None,
+    video_path: Optional[str] = None,
+    caminho_saida_personalizado: Optional[str] = None
 ) -> Optional[str]:
     """
     Gera uma miniatura personalizada ultra-profissional e sob medida para o tema do vídeo.
-    Se uma imagem base limpa (frame ou foto) for fornecida, aprimora e adiciona o grafismo cinematográfico.
-    Salva o arquivo pronto para upload no YouTube.
+    Arquitetura em 3 Camadas a Custo $0.00:
+    1. Extração de Frame Real em Alta Resolução do Vídeo renderizado (FFmpeg).
+    2. Geração de Arte de Fundo via Pollinations.ai (FLUX / Turbo gratuito e sem limites).
+    3. Busca de Foto Oficial em Alta Resolução (Wikipedia/Wikimedia).
+    4. Tratamento Cinematográfico e Tipografia de Alto Impacto com Pillow.
     """
     try:
         dados_capa = gerar_prompt_capa_ia(titulo, canal=canal, is_doc=is_doc)
-        output_filename = f"thumb_{canal}_{video_id}.jpg"
-        output_path = os.path.join(THUMBNAIL_DIR, output_filename)
+        output_path = caminho_saida_personalizado or os.path.join(THUMBNAIL_DIR, f"thumb_{canal}_{video_id}.jpg")
+        os.makedirs(os.path.dirname(output_path), exist_ok=True)
         
         largura, altura = (1280, 720) if is_doc else (720, 1280)
-        
-        # 1. Obter imagem base (se fornecida ou foto do Wikipedia / frame)
         canvas = None
+
+        # Camada 1: Imagem base fornecida diretamente
         if imagem_base_path and os.path.exists(imagem_base_path):
             try:
                 base = Image.open(imagem_base_path).convert("RGB")
-                # Redimensiona mantendo proporção e corta o centro
                 canvas = base.resize((largura, altura), Image.LANCZOS)
             except Exception as e_img:
-                logger.warning(f"Erro abrindo imagem base: {e_img}")
-        
+                logger.debug(f"Aviso abrindo imagem base: {e_img}")
+
+        # Camada 2: Extrair frame real em alta definição do próprio vídeo renderizado
+        if canvas is None and video_path and os.path.exists(video_path):
+            frame_img = _extrair_frame_video(video_path)
+            if frame_img:
+                canvas = frame_img.resize((largura, altura), Image.LANCZOS)
+
+        # Camada 3: Gerar fundo cinematográfico via IA Gratuita (Pollinations.ai)
         if canvas is None:
-            # Tenta buscar foto oficial das personalidades citadas no título
+            canvas = _gerar_fundo_pollinations(dados_capa["prompt"], largura, altura)
+
+        # Camada 4: Busca de Foto Oficial HD no Wikipedia / Wikimedia
+        if canvas is None:
             palavras_tit = re.findall(r'[A-Z][a-zÀ-ÿ]+(?:\s+[A-Z][a-zÀ-ÿ]+)?', titulo)
             foto_baixada = None
             for ent in palavras_tit:
-                if ent.lower() in ("para", "com", "uma", "sobre", "futebol", "shorts", "dossiê", "documentário"):
+                if ent.lower() in ("para", "com", "uma", "sobre", "futebol", "shorts", "dossiê", "documentário", "fergil", "investigação"):
                     continue
                 q = urllib.parse.quote(ent)
                 urls_wiki = [
@@ -144,35 +238,49 @@ def gerar_capa_tematica_profissional(
             
             if foto_baixada and os.path.exists(foto_baixada):
                 base = Image.open(foto_baixada).convert("RGB")
-                # Aplica enquadramento no rosto
                 canvas = base.resize((largura, altura), Image.LANCZOS)
                 try:
                     os.remove(foto_baixada)
                 except Exception:
                     pass
-            else:
-                # Gradiente dramático de fallback caso não haja foto externa
-                canvas = Image.new("RGB", (largura, altura), (15, 20, 30))
-                draw_bg = ImageDraw.Draw(canvas)
-                for i in range(largura):
-                    r = int(10 + (i / largura) * 35)
-                    b = int(40 - (i / largura) * 20)
-                    draw_bg.line([(i, 0), (i, altura)], fill=(r, 15, b))
 
-        # 2. Tratamento Cinematográfico (Contraste + Saturação de Cores)
+        # Camada 5: Fallback gradiente procedural dramático se todas as fontes falharem
+        if canvas is None:
+            canvas = Image.new("RGB", (largura, altura), (15, 20, 30))
+            draw_bg = ImageDraw.Draw(canvas)
+            for i in range(largura):
+                if canal == "fergil":
+                    r = int(12 + (i / largura) * 20)
+                    g = int(18 + (i / largura) * 25)
+                    b = int(35 + (i / largura) * 40)
+                elif canal == "moda":
+                    r = int(30 + (i / largura) * 45)
+                    g = int(15 + (i / largura) * 15)
+                    b = int(30 + (i / largura) * 35)
+                else:
+                    r = int(10 + (i / largura) * 35)
+                    g = 15
+                    b = int(40 - (i / largura) * 20)
+                draw_bg.line([(i, 0), (i, altura)], fill=(r, g, b))
+
+        # Garante dimensões exatas de tela para a composição gráfica
+        if canvas.width != largura or canvas.height != altura:
+            canvas = canvas.resize((largura, altura), Image.LANCZOS)
+
+        # Tratamento Cinematográfico (Contraste + Saturação de Cores)
         enhancer = ImageEnhance.Contrast(canvas)
-        canvas = enhancer.enhance(1.25)
+        canvas = enhancer.enhance(1.22)
         enhancer_c = ImageEnhance.Color(canvas)
-        canvas = enhancer_c.enhance(1.20)
+        canvas = enhancer_c.enhance(1.18)
         
-        # 3. Adicionar Overlay de Luz Dramática e Sombra para Leitura
+        # Adicionar Overlay de Luz Dramática e Sombra para Leitura
         overlay = Image.new("RGBA", (largura, altura), (0, 0, 0, 0))
         ov_draw = ImageDraw.Draw(overlay)
         
         if is_doc:
             # Gradiente horizontal escuro na esquerda para destacar os textos em 16:9
-            for x in range(int(largura * 0.55)):
-                alpha = int(220 * (1 - (x / (largura * 0.55))))
+            for x in range(int(largura * 0.58)):
+                alpha = int(225 * (1 - (x / (largura * 0.58))))
                 ov_draw.line([(x, 0), (x, altura)], fill=(0, 0, 0, alpha))
         else:
             # Gradiente vertical escuro no topo e rodapé para 9:16
@@ -186,37 +294,51 @@ def gerar_capa_tematica_profissional(
         canvas = Image.alpha_composite(canvas.convert("RGBA"), overlay).convert("RGB")
         draw = ImageDraw.Draw(canvas)
         
-        # 4. Tipografia de Alto Impacto (Padrão YouTube Virais)
+        # Cores temáticas por canal
+        if canal == "fergil":
+            cor_badge_bg = (18, 30, 55)
+            cor_badge_texto = (255, 215, 0) # Dourado
+            cor_texto_principal = (255, 215, 0) # Dourado vibrante
+        elif canal == "moda":
+            cor_badge_bg = (210, 30, 90)
+            cor_badge_texto = (255, 255, 255)
+            cor_texto_principal = (255, 235, 180) # Dourado suave / champanhe
+        else:
+            cor_badge_bg = (210, 25, 25) # Vermelho alerta
+            cor_badge_texto = (255, 255, 255)
+            cor_texto_principal = (255, 235, 20) # Amarelo esportivo de alto contraste
+
+        # Tipografia de Alto Impacto
         if is_doc:
-            font_badge = _obter_fonte(28, "impact")
-            font_xl = _obter_fonte(85, "impact")
-            font_sub = _obter_fonte(42, "impact")
+            font_badge = _obter_fonte(26, "impact")
+            font_xl = _obter_fonte(82, "impact")
+            font_sub = _obter_fonte(40, "impact")
             
-            # Badge de Dossiê / Exclusivo
-            draw.rectangle([50, 45, 480, 95], fill=(210, 25, 25))
-            draw.text((65, 52), "🔴 DOSSIÊ CONFIDENCIAL", font=font_badge, fill=(255, 255, 255))
+            # Badge de Dossiê / Exclusivo no topo esquerdo
+            badge_largura = 460 if canal != "fergil" else 420
+            draw.rectangle([50, 45, 50 + badge_largura, 95], fill=cor_badge_bg)
+            draw.text((65, 54), dados_capa["badge_txt"], font=font_badge, fill=cor_badge_texto)
             
-            # Título Chamativo Gigante
-            _desenhar_texto_com_borda(draw, (50, 120), dados_capa["texto_banner"], font_xl, cor_texto=(255, 235, 20), stroke_w=10)
-            _desenhar_texto_com_borda(draw, (50, 240), dados_capa["subtitulo"], font_sub, cor_texto=(255, 255, 255), stroke_w=8)
+            # Título Chamativo Gigante (2-3 palavras complementares)
+            _desenhar_texto_com_borda(draw, (50, 115), dados_capa["texto_banner"], font_xl, cor_texto=cor_texto_principal, stroke_w=10)
+            _desenhar_texto_com_borda(draw, (50, 235), dados_capa["subtitulo"], font_sub, cor_texto=(255, 255, 255), stroke_w=8)
             
-            # Logo ou Marca d'Água no Canto Superior Direito
-            _desenhar_texto_com_borda(draw, (largura - 320, 45), "FUTEBOL INVISÍVEL", font_badge, cor_texto=(230, 230, 230), stroke_w=4)
+            # Marca do canal no canto superior direito
+            _desenhar_texto_com_borda(draw, (largura - 300, 45), dados_capa["nome_canal_badge"], font_badge, cor_texto=(230, 230, 230), stroke_w=4)
         else:
             font_badge = _obter_fonte(32, "impact")
-            font_xl = _obter_fonte(78, "impact")
-            font_sub = _obter_fonte(48, "impact")
+            font_xl = _obter_fonte(74, "impact")
+            font_sub = _obter_fonte(44, "impact")
             
-            draw.rectangle([40, 60, largura - 40, 130], fill=(210, 25, 25) if canal == "futebol" else (220, 20, 100))
-            badge_txt = "🔥 BASTIDORES EXPLOSIVOS" if canal == "futebol" else "✨ ACHADINHO DE LUXO"
-            draw.text((65, 75), badge_txt, font=font_badge, fill=(255, 255, 255))
+            draw.rectangle([40, 60, largura - 40, 130], fill=cor_badge_bg)
+            draw.text((65, 75), dados_capa["badge_txt"], font=font_badge, fill=cor_badge_texto)
             
-            _desenhar_texto_com_borda(draw, (40, 160), dados_capa["texto_banner"], font_xl, cor_texto=(255, 235, 20), stroke_w=10)
+            _desenhar_texto_com_borda(draw, (40, 155), dados_capa["texto_banner"], font_xl, cor_texto=cor_texto_principal, stroke_w=10)
             _desenhar_texto_com_borda(draw, (40, altura - 180), dados_capa["subtitulo"], font_sub, cor_texto=(255, 255, 255), stroke_w=8)
 
-        # 5. Salva na máxima qualidade
+        # Salva na máxima qualidade JPEG
         canvas.save(output_path, "JPEG", quality=95)
-        logger.success(f"Capa temática profissional criada para '{titulo[:30]}': {output_path}")
+        logger.success(f"🎨 [CAPA PRONTA GERADA] '{titulo[:30]}': {output_path}")
         return output_path
 
     except Exception as e:

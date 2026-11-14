@@ -1478,6 +1478,31 @@ def processar_video(task_id: str, titulo: str, tipo: str, uploaded_image_paths: 
                 TASKS[task_id]["ctr_score"] = auditoria_ctr.get("score")
                 TASKS[task_id]["ctr_motivo"] = auditoria_ctr.get("motivo")
             
+            # GERAÇÃO AUTOMÁTICA DE CAPA (ILIMITADA E A CUSTO $0.00 VIA FRAME REAL / POLLINATIONS)
+            capa_filename = final_filename.rsplit('.', 1)[0] + "_CAPA.jpg"
+            capa_path = os.path.join(target_dir, capa_filename)
+            caminho_capa_gerada = None
+            try:
+                from app.services import thumbnail_engine
+                caminho_capa_gerada = thumbnail_engine.gerar_capa_tematica_profissional(
+                    video_id=task_id,
+                    titulo=post_titulo,
+                    canal=canal_tarefa,
+                    is_doc=is_doc,
+                    video_path=final_path,
+                    caminho_saida_personalizado=capa_path
+                )
+            except Exception as e_capa:
+                logger.warning(f"Aviso ao gerar capa temática: {e_capa}")
+
+            if caminho_capa_gerada and os.path.exists(caminho_capa_gerada):
+                TASKS[task_id]["thumb_path"] = caminho_capa_gerada
+                TASKS[task_id]["thumb_name"] = capa_filename
+                logger.success(f"🎨 [CAPA PRONTA GERADA] Arquivo pronto na pasta: {capa_filename}")
+            else:
+                TASKS[task_id]["thumb_path"] = None
+                TASKS[task_id]["thumb_name"] = None
+
             # Salvar ficheiro .TXT completo com as informações para guardar e postar depois
             txt_filename = final_filename.rsplit('.', 1)[0] + "_POSTAGEM.txt"
             txt_path = os.path.join(target_dir, txt_filename)
@@ -1497,6 +1522,11 @@ def processar_video(task_id: str, titulo: str, tipo: str, uploaded_image_paths: 
                     if auditoria_ctr.get('alternativas'):
                         f_txt.write(f"• Alternativas Geradas: {', '.join(auditoria_ctr.get('alternativas'))}\n")
                     f_txt.write("\n")
+                if TASKS[task_id].get("thumb_path") and os.path.exists(TASKS[task_id]["thumb_path"]):
+                    f_txt.write(f"🖼️ CAPA PRONTA GERADA AUTOMATICAMENTE ($0.00):\n")
+                    f_txt.write(f"👉 Arquivo: {TASKS[task_id]['thumb_name']}\n")
+                    f_txt.write(f"👉 Caminho: {TASKS[task_id]['thumb_path']}\n")
+                    f_txt.write(f"💡 Dica: Podes arrastar este arquivo diretamente para o YouTube Studio ou usar os 3 conceitos abaixo no Canva!\n\n")
                 if not is_afiliado:
                     try:
                         sug_capa = dual_ai_editor.gerar_sugestao_thumbnail_complementar(post_titulo, canal=canal_tarefa)
@@ -1513,12 +1543,6 @@ def processar_video(task_id: str, titulo: str, tipo: str, uploaded_image_paths: 
                 if roteiro:
                     f_txt.write(f"🎙️ ROTEIRO NARRADO:\n{roteiro}\n")
             
-            # CAPAS 100% DESATIVADAS (DIRETRIZ ESTRITA DO USUÁRIO):
-            # O sistema nunca gera imagens CAPA_PROMO nem envia capas para o YouTube.
-            # O proprietário fará o envio 100% manual das capas criadas por ele.
-            TASKS[task_id]["thumb_path"] = None
-            TASKS[task_id]["thumb_name"] = None
-                
             autoviral_brain.salvar_tarefa_db(task_id, TASKS[task_id])
             logger.success(f"{prefix} CONCLUÍDO: {final_path} | TXT: {txt_path}")
             
